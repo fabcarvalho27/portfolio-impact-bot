@@ -45,12 +45,12 @@ Choose **one** of the following methods:
 
 ---
 
-## 3. n8n Workflow Import 🤖
+3.  **n8n Workflow Import 🤖**
 
 1.  Open your n8n instance.
 2.  Click on **Workflows** > **Add Workflow** > **Import from File**.
-3.  Select `n8n/Portfolio Impact.json`.
-4.  (Optional) If you have the Supporter Pack, also import `n8n/Portfolio Impact - Weekly Review.json`.
+3.  Select `n8n/Portfolio Impact.json` (or the Lite version).
+4.  Also import `n8n/Portfolio Impact - Weekly Review.json` (or the Lite version).
 
 ---
 

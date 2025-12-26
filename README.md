@@ -52,10 +52,10 @@ graph TD
 ### Impact Alerts
 | Detailed Analysis (High Priority) | FYI / Summary (Normal Priority) |
 | :---: | :---: |
-| ![Detailed Alert Placeholder](docs/screenshots/telegram_detailed.png) | ![FYI Alert Placeholder](docs/screenshots/telegram_fyi.png) |
+| ![Detailed Alert Placeholder](docs/screenshots/telegram_detailed.jpg) | ![FYI Alert Placeholder](docs/screenshots/telegram_fyi.jpg) |
 
 ### Weekly Analytics Report
-![Weekly Report Placeholder](docs/screenshots/telegram_weekly_report.png)
+![Weekly Report Placeholder](docs/screenshots/telegram_weekly_report.jpg)
 
 ## 🏁 Getting Started
 
@@ -74,15 +74,6 @@ Uses **n8n Data Tables** (built-in). Best for quick setup and low maintenance (n
 *   **Database:** None. Just create two Data Tables (`Portfolio` and `Workflow Logs`) inside n8n.
 
 Follow the detailed guide in [SETUP.md](./SETUP.md) for step-by-step instructions.
-
-## 💎 Supporter Pack
-
-The core "Portfolio Impact" workflow is open-source and free to use. For those who want more advanced analytics, the **Supporter Pack** includes:
--   The **Weekly Review** automated reporting workflow.
--   Advanced model configuration guides.
--   Priority support for setup.
-
-[**Get the Supporter Pack on Buy Me a Coffee**](https://www.buymeacoffee.com/fabcarvalho/extras)
 
 ---
 
