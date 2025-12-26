@@ -14,25 +14,26 @@ Follow these steps to set up your AI-powered portfolio analysis system.
 
 ## 1. Database Setup 🗄️
 
-You need to set up two schemas in your PostgreSQL database.
+Choose **one** of the following methods:
 
-### Core Data Schema
-Run the script located at `database/invest_core.sql`. This creates the `invest_core` schema and the `security` and `position` tables.
+### Method A: PostgreSQL (Standard)
+1. **Core Data Schema:** Run `database/invest_core.sql`. This creates the `invest_core` schema and the `security` and `position` tables.
+2. **Audit/Logging Schema:** Run `database/invest_audit.sql`. This creates the `invest_audit` schema and the `n8n_portfolio_impact_workflow_log` table.
+3. **Populate Portfolio:**
+   ```sql
+   INSERT INTO invest_core.security (symbol, name) VALUES ('NVDA', 'NVIDIA');
+   INSERT INTO invest_core.position (security_id, quantity, open_price) 
+   VALUES ((SELECT id FROM invest_core.security WHERE symbol = 'NVDA'), 10, 120.50);
+   ```
 
-### Audit/Logging Schema
-Run the script located at `database/invest_audit.sql`. This creates the `invest_audit` schema and the `n8n_portfolio_impact_workflow_log` table.
-
-### Populate your Portfolio
-You must add your symbols to the `security` table and your current holdings to the `position` table for the bot to know what to analyze.
-
-```sql
--- Example: Add a security
-INSERT INTO invest_core.security (symbol, name) VALUES ('NVDA', 'NVIDIA Corporation');
-
--- Example: Add a position (close_time must be NULL for active positions)
-INSERT INTO invest_core.position (security_id, quantity, open_price) 
-VALUES ((SELECT id FROM invest_core.security WHERE symbol = 'NVDA'), 10, 120.50);
-```
+### Method B: n8n Data Tables (Lite)
+1. In n8n, go to **Data Tables** in the left sidebar.
+2. **Create Table: `Portfolio`**
+   - Add columns: `symbol` (String), `name` (String).
+   - Add your stocks directly to the table (e.g., symbol: `AAPL`, name: `Apple`).
+3. **Create Table: `Workflow Logs`**
+   - Add columns: `run_id` (String), `message_id` (String), `email_subject` (String), `triage_priority` (String), `analysis_model` (String), `actionable_item_count` (Number), `total_item_count` (Number), `has_error` (Boolean), `error_message` (String).
+4. When you import the **Lite** workflows (`n8n/Portfolio Impact - Lite.json` and `n8n/Portfolio Impact - Weekly Review - Lite.json`), open the `Data Table` nodes and select these tables from the dropdown.
 
 ---
 

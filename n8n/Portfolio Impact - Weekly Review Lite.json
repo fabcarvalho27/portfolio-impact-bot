@@ -1,5 +1,5 @@
 {
-  "name": "Portfolio Impact - Weekly Review",
+  "name": "Portfolio Impact - Weekly Review Lite",
   "nodes": [
     {
       "parameters": {
@@ -18,31 +18,10 @@
       "typeVersion": 1.3,
       "position": [
         -176,
-        272
+        128
       ],
-      "id": "c039ff6d-2da4-4e26-8863-37a2db66c98e",
+      "id": "44783925-dd7b-4ab0-836b-d5d104219f59",
       "name": "Weekly Trigger"
-    },
-    {
-      "parameters": {
-        "operation": "executeQuery",
-        "query": "SELECT *\n  FROM {{$env.DB_SCHEMA_AUDIT || 'invest_audit'}}.n8n_portfolio_impact_workflow_log\n  WHERE logged_at >= NOW() - INTERVAL '7 days';",
-        "options": {}
-      },
-      "type": "n8n-nodes-base.postgres",
-      "typeVersion": 2.6,
-      "position": [
-        48,
-        272
-      ],
-      "id": "276cc6cf-cc9d-40fd-85cc-c48a9d7ab66c",
-      "name": "Postgres: Fetch Logs",
-      "credentials": {
-        "postgres": {
-          "id": "kMYfCk8MQVYfSRwu",
-          "name": "invest_n8n_app_write"
-        }
-      }
     },
     {
       "parameters": {
@@ -52,9 +31,9 @@
       "typeVersion": 2,
       "position": [
         272,
-        272
+        128
       ],
-      "id": "23d3209f-8323-4766-8165-7884472f000d",
+      "id": "019e4a4c-e658-4dc0-a76c-6d601697e5ab",
       "name": "Format: Analyze Logs"
     },
     {
@@ -65,9 +44,9 @@
       "typeVersion": 2,
       "position": [
         496,
-        272
+        128
       ],
-      "id": "96a73ccd-248f-4607-a275-30e2192bb428",
+      "id": "7f1c4988-cda0-4030-ba37-14ce0a1a2066",
       "name": "Format: Review Report"
     },
     {
@@ -81,18 +60,48 @@
       "type": "n8n-nodes-base.telegram",
       "typeVersion": 1.2,
       "position": [
-        752,
-        272
+        720,
+        128
       ],
-      "id": "fe9991f4-2d33-4afe-9e21-aca46df0df7e",
+      "id": "5c34b043-2fa5-4de7-bea3-74870da64f91",
       "name": "Telegram: Send Report",
-      "webhookId": "075c026d-22b8-4aa0-b24a-08a60d52f109",
+      "webhookId": "1131241f-7c83-403f-8f11-edab5fb7d1ab",
       "credentials": {
         "telegramApi": {
           "id": "L9cwZfU7yp7HcB8K",
           "name": "Telegram investments bot"
         }
       }
+    },
+    {
+      "parameters": {
+        "operation": "get",
+        "dataTableId": {
+          "__rl": true,
+          "value": "B81vcfRTTcJt3OHB",
+          "mode": "list",
+          "cachedResultName": "Workflow Logs",
+          "cachedResultUrl": "/projects/bkAATGxdaSRDgRAg/datatables/B81vcfRTTcJt3OHB"
+        },
+        "filters": {
+          "conditions": [
+            {
+              "keyName": "createdAt",
+              "condition": "gt",
+              "keyValue": "={{ $now.minus({ days: 7 }).toISO() }}"
+            }
+          ]
+        },
+        "returnAll": true
+      },
+      "type": "n8n-nodes-base.dataTable",
+      "typeVersion": 1,
+      "position": [
+        48,
+        128
+      ],
+      "id": "cd181fab-cde4-4a14-ab28-bcb156112323",
+      "name": "Data Table: Fetch Logs"
     }
   ],
   "pinData": {},
@@ -101,18 +110,7 @@
       "main": [
         [
           {
-            "node": "Postgres: Fetch Logs",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    },
-    "Postgres: Fetch Logs": {
-      "main": [
-        [
-          {
-            "node": "Format: Analyze Logs",
+            "node": "Data Table: Fetch Logs",
             "type": "main",
             "index": 0
           }
@@ -140,18 +138,29 @@
           }
         ]
       ]
+    },
+    "Data Table: Fetch Logs": {
+      "main": [
+        [
+          {
+            "node": "Format: Analyze Logs",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
     }
   },
-  "active": true,
+  "active": false,
   "settings": {
     "executionOrder": "v1"
   },
-  "versionId": "87f68b4b-f83d-41c2-b428-09cd3ea15dfc",
+  "versionId": "b63ee5f5-d85b-4624-8a94-88c5fe8f8562",
   "meta": {
     "templateCredsSetupCompleted": true,
     "instanceId": "cd895a9f6c2651ad7fd857e15b6c33cb345eeb79c98c7027b52c0557880d7a7e"
   },
-  "id": "W0rM7dI6qSOSxOEh",
+  "id": "IoRoWBvpm2IjCiM7",
   "tags": [
     {
       "updatedAt": "2025-11-09T22:43:41.659Z",

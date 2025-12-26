@@ -59,12 +59,21 @@ graph TD
 
 ## 🏁 Getting Started
 
-To get your own bot up and running, follow the detailed guide in [SETUP.md](./SETUP.md).
+Choose the version that best fits your infrastructure:
 
-1.  **Database:** Set up your PostgreSQL schemas using the scripts in `/database`.
-2.  **n8n:** Import the workflows from `/n8n`.
-3.  **Environment:** Configure your `.env` variables (see `.env.example`).
-4.  **Credentials:** Set up Gmail (OAuth2), OpenAI, Telegram, and PostgreSQL credentials in n8n.
+### Option A: Standard (Professional)
+Uses **PostgreSQL** for data storage. Best for long-term tracking and external analytics dashboards.
+*   **Workflow:** `n8n/Portfolio Impact.json`
+*   **Database:** Requires running scripts in `/database`.
+
+### Option B: Lite (Built-in)
+Uses **n8n Data Tables** (built-in). Best for quick setup and low maintenance (no external database required).
+*   **Workflows:** 
+    - `n8n/Portfolio Impact - Lite.json`
+    - `n8n/Portfolio Impact - Weekly Review - Lite.json`
+*   **Database:** None. Just create two Data Tables (`Portfolio` and `Workflow Logs`) inside n8n.
+
+Follow the detailed guide in [SETUP.md](./SETUP.md) for step-by-step instructions.
 
 ## 💎 Supporter Pack
 
