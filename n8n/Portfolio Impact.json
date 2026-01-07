@@ -1,3 +1,4 @@
+
 {
   "name": "Portfolio Impact",
   "nodes": [
@@ -8,8 +9,8 @@
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        48,
-        -192
+        -160,
+        -168
       ],
       "id": "cf1d6f3d-1a8f-4553-991f-34a8614f3e8f",
       "name": "Generate Run ID"
@@ -25,8 +26,8 @@
       "type": "n8n-nodes-base.telegram",
       "typeVersion": 1.2,
       "position": [
-        3408,
-        -336
+        3200,
+        -432
       ],
       "id": "fe4e7003-be21-443e-a52f-11f6682d2948",
       "name": "Send Telegram Message",
@@ -49,8 +50,8 @@
       "type": "n8n-nodes-base.telegram",
       "typeVersion": 1.2,
       "position": [
-        3408,
-        48
+        3200,
+        -48
       ],
       "id": "97a3c805-94b5-484b-8ed8-9d5c6c63a55b",
       "name": "Send Telegram Error Message",
@@ -67,8 +68,8 @@
       "type": "n8n-nodes-base.manualTrigger",
       "typeVersion": 1,
       "position": [
-        -176,
-        -192
+        -384,
+        -168
       ],
       "id": "cbb7fe0a-1278-4bbb-a2ec-adc8bcf05eed",
       "name": "Manual Trigger"
@@ -87,8 +88,8 @@
       "type": "n8n-nodes-base.gmail",
       "typeVersion": 2.1,
       "position": [
-        272,
-        -192
+        64,
+        -168
       ],
       "id": "d380ddb5-fc8c-4b78-be48-1beb5ac20269",
       "name": "Gmail Source: Unread",
@@ -102,39 +103,6 @@
     },
     {
       "parameters": {
-        "conditions": {
-          "options": {
-            "caseSensitive": true,
-            "leftValue": "",
-            "typeValidation": "strict",
-            "version": 2
-          },
-          "conditions": [
-            {
-              "id": "e1a5cb14-8e22-41a9-9a87-152e59442d70",
-              "leftValue": "={{$items().length}}",
-              "rightValue": 0,
-              "operator": {
-                "type": "number",
-                "operation": "gt"
-              }
-            }
-          ],
-          "combinator": "and"
-        },
-        "options": {}
-      },
-      "type": "n8n-nodes-base.if",
-      "typeVersion": 2.2,
-      "position": [
-        496,
-        -192
-      ],
-      "id": "773262ec-08da-44a3-8f12-a503a549fcac",
-      "name": "Check: Found Emails?"
-    },
-    {
-      "parameters": {
         "operation": "executeQuery",
         "query": "SELECT DISTINCT s.symbol\nFROM {{$env.DB_SCHEMA_CORE || 'invest_core'}}.position p\nJOIN {{$env.DB_SCHEMA_CORE || 'invest_core'}}.security s ON s.id = p.security_id\nWHERE p.close_time IS NULL;",
         "options": {}
@@ -142,8 +110,8 @@
       "type": "n8n-nodes-base.postgres",
       "typeVersion": 2.6,
       "position": [
-        720,
-        -80
+        512,
+        -168
       ],
       "id": "3dbe783d-f4b4-47f6-86e5-57c36c50d152",
       "name": "Postgres: Load Portfolio",
@@ -162,21 +130,21 @@
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        944,
-        -80
+        736,
+        -168
       ],
       "id": "0c877a6d-3573-4c24-991c-f296b973f383",
       "name": "Format Portfolio Context"
     },
     {
       "parameters": {
-        "jsCode": "function stripHtml(html) {\n  if (!html) return '';\n  // Remove scripts/styles\n  html = html.replace(/<script[\\s\\S]*?<\\/script>/gi, '')\n             .replace(/<style[\\s\\S]*?<\\/style>/gi, '');\n  // Replace <br> and <p> with line breaks to preserve some structure\n  html = html.replace(/<(br|\\/p|\\/div)\\s*\\/?>/gi, '\\n');\n  // Strip all remaining tags\n  let text = html.replace(/<[^>]+>/g, ' ');\n  // Unescape common HTML entities (lightweight)\n  text = text.replace(/&nbsp;/gi, ' ')\n             .replace(/&amp;/gi, '&')\n             .replace(/&lt;/gi, '<')\n             .replace(/&gt;/gi, '>')\n             .replace(/&#39;/gi, \"'\")\n             .replace(/&quot;/gi, '\"');\n  // Collapse whitespace\n  return text.replace(/\\r?\\n|\\r/g, ' ').replace(/\\s+/g, ' ').trim();\n}\n\nfunction extractLinks(s) {\n  if (!s) return [];\n  const links = new Set();\n  const re = /\\bhttps?:\\/\\/[^\\s)>\"']+/gi;\n  let m;\n  while ((m = re.exec(s)) !== null) {\n    // basic tracker trim (utm, mc, etc.) — optional\n    let url = m[0];\n    try {\n      const u = new URL(url);\n      ['utm_source','utm_medium','utm_campaign','utm_term','utm_content','mc_cid','mc_eid'].forEach(p => u.searchParams.delete(p));\n      url = u.toString();\n    } catch {}\n    links.add(url);\n  }\n  return Array.from(links);\n}\n\nreturn items.map(it => {\n  const headers = it.json.headers;\n  const subject = String(it.json.subject || '').trim();\n  const from    = String(headers.from || '').trim();\n  const date    = String(it.json.date || '').trim();\n  const to      = String(headers.to || '').trim();\n  const messageId = it.json.messageId\n\n  // Prefer plain text → textAsHtml → html\n  let body = '';\n  if (it.json.text && String(it.json.text).trim().length > 0) {\n    body = String(it.json.text);\n  } else if (it.json.textAsHtml && String(it.json.textAsHtml).trim().length > 0) {\n    body = stripHtml(String(it.json.textAsHtml));\n  } else if (it.json.html && String(it.json.html).trim().length > 0) {\n    body = stripHtml(String(it.json.html));\n  }\n\n  // Final normalization + clamp\n  body = String(body).replace(/\\r?\\n|\\r/g, ' ').replace(/\\s+/g, ' ').trim();\n  const MAX = 12000; // keep token cost in check\n  if (body.length > MAX) body = body.slice(0, MAX);\n\n  const links = extractLinks(`${it.json.text || ''}\\n${it.json.textAsHtml || ''}\\n${it.json.html || ''}`);\n\n  return {\n    json: {\n      subject, from, date, to,\n      body,\n      bodyShort: body.slice(0, 500),\n      messageId: it.json.id\n    }\n  };\n});"
+        "jsCode": "function stripHtml(html) {\n  if (!html) return '';\n  // Remove scripts/styles\n  html = html.replace(/<script[\\s\\S]*?<\\/script>/gi, '')\n             .replace(/<style[\\s\\S]*?<\\/style>/gi, '');\n  // Replace <br> and <p> with line breaks to preserve some structure\n  html = html.replace(/<(br|\\/p|\\/div)\\s*\\/?>/gi, '\\n');\n  // Strip all remaining tags\n  let text = html.replace(/<[^>]+>/g, ' ');\n  // Unescape common HTML entities (lightweight)\n  text = text.replace(/&nbsp;/gi, ' ')\n             .replace(/&amp;/gi, '&')\n             .replace(/&lt;/gi, '<')\n             .replace(/&gt;/gi, '>')\n             .replace(/&#39;/gi, \"'\")\n             .replace(/&quot;/gi, '\"');\n  // Collapse whitespace\n  return text.replace(/\\r?\\n|\\r/g, ' ').replace(/\\s+/g, ' ').trim();\n}\n\nfunction extractLinks(s) {\n  if (!s) return [];\n  const links = new Set();\n  const re = /\\bhttps?:\\/\\/[^\\s)>\"']+/gi;\n  let m;\n  while ((m = re.exec(s)) !== null) {\n    // basic tracker trim (utm, mc, etc.) — optional\n    let url = m[0];\n    try {\n      const u = new URL(url);\n      ['utm_source','utm_medium','utm_campaign','utm_term','utm_content','mc_cid','mc_eid'].forEach(p => u.searchParams.delete(p));\n      url = u.toString();\n    } catch {}\n    links.add(url);\n  }\n  return Array.from(links);\n}\n\nreturn items.map(it => {\n  const headers = it.json.headers || it.json;\n  const subject = String(it.json.subject || '').trim();\n  const from    = String(headers.from || '').trim();\n  const date    = String(it.json.date || '').trim();\n  const to      = String(headers.to || '').trim();\n  const messageId = it.json.messageId\n\n  // Prefer plain text → textAsHtml → html\n  let body = '';\n  if (it.json.text && String(it.json.text).trim().length > 0) {\n    body = String(it.json.text);\n  } else if (it.json.textAsHtml && String(it.json.textAsHtml).trim().length > 0) {\n    body = stripHtml(String(it.json.textAsHtml));\n  } else if (it.json.html && String(it.json.html).trim().length > 0) {\n    body = stripHtml(String(it.json.html));\n  }\n\n  // Final normalization + clamp\n  body = String(body).replace(/\\r?\\n|\\r/g, ' ').replace(/\\s+/g, ' ').trim();\n  const MAX = 12000; // keep token cost in check\n  if (body.length > MAX) body = body.slice(0, MAX);\n\n  const links = extractLinks(`${it.json.text || ''}\\n${it.json.textAsHtml || ''}\\n${it.json.html || ''}`);\n\n  return {\n    json: {\n      subject, from, date, to,\n      body,\n      bodyShort: body.slice(0, 500),\n      messageId: it.json.id\n    }\n  };\n});"
       },
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        944,
-        -272
+        736,
+        -360
       ],
       "id": "0d17c556-cd1c-4b1d-b6df-8d5f6c4af4c6",
       "name": "HTML Cleaner"
@@ -211,8 +179,8 @@
       "type": "@n8n/n8n-nodes-langchain.openAi",
       "typeVersion": 2,
       "position": [
-        1392,
-        -272
+        1184,
+        -360
       ],
       "id": "326e39df-5b04-4cb5-8d6e-402a63e86eca",
       "name": "AI Agent: Triage",
@@ -230,8 +198,8 @@
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        1840,
-        -192
+        1632,
+        -288
       ],
       "id": "36e6d052-f064-46ba-aade-7f0e49b93cb1",
       "name": "Parser: Triage JSON"
@@ -263,8 +231,8 @@
       "type": "n8n-nodes-base.if",
       "typeVersion": 2.3,
       "position": [
-        2064,
-        -192
+        1856,
+        -288
       ],
       "id": "58fb33b4-7b48-4ccb-ae35-f549d2edce0b",
       "name": "Check: Is Junk?"
@@ -276,8 +244,8 @@
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        3184,
-        -32
+        2976,
+        -120
       ],
       "id": "94721969-9237-4dd8-912a-8230b467a5f0",
       "name": "Format: Junk Alert"
@@ -314,8 +282,8 @@
       "type": "@n8n/n8n-nodes-langchain.openAi",
       "typeVersion": 2,
       "position": [
-        2288,
-        -336
+        2080,
+        -432
       ],
       "id": "eea98d07-ef5b-4109-a1d3-5052f0465b07",
       "name": "AI Agent: Analysis",
@@ -333,8 +301,8 @@
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        2512,
-        -336
+        2304,
+        -432
       ],
       "id": "7cba499f-ef79-4ef8-a13b-3b95cc6c05a6",
       "name": "Format: AI Output"
@@ -346,8 +314,8 @@
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        2960,
-        -272
+        2752,
+        -360
       ],
       "id": "e4ce428b-06dc-4ec1-b6bf-39a0b21ad43c",
       "name": "Guard: Analysis JSON"
@@ -359,21 +327,21 @@
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        3184,
-        -272
+        2976,
+        -360
       ],
       "id": "d9881343-b690-4c7f-a29d-84be4b30e9e1",
       "name": "Format: Impact Alert"
     },
     {
       "parameters": {
-        "jsCode": "const finalLogs = [];\n\nfor (const item of items) {\n  const logEntry = {\n    run_id: $('Generate Run ID').first().json.run_id,\n    message_id: item.json.messageId,\n    email_subject: item.json.subject,\n    triage_priority: item.json.priority,\n    actionable_item_count: 0,\n    total_item_count: 0,\n  };\n\n  // Check if there was an AI analysis to count actions from\n  if (item.json.ai) {\n  logEntry.analysis_model = item.json.ai.model || \"\";\n  if (Array.isArray(item.json.ai.actions)) {\n    logEntry.total_item_count = item.json.ai.actions.length;\n    logEntry.actionable_item_count = item.json.ai.actions.filter(\n      (a) => a.suggestedAction !== \"NONE\"\n    ).length;\n  }\n}\n\n\n  // If there was an error message from a previous step, log it\n  if (item.json.priority === 'junk' && item.json.summary) {\n    logEntry.has_error = true;\n    logEntry.error_message = item.json.summary;\n  }\n\n  finalLogs.push({ json: logEntry });\n}\n\nreturn finalLogs;\n"
+        "jsCode": "const finalLogs = [];\n\nfor (const item of items) {\n  const logEntry = {\n    run_id: $('Check: Found Items?').first().json.isFromForm ? $('Generate Run ID1').first().json.run_id : $('Generate Run ID').first().json.run_id,\n    message_id: item.json.messageId,\n    email_subject: item.json.subject,\n    triage_priority: item.json.priority,\n    actionable_item_count: 0,\n    total_item_count: 0,\n  };\n\n  // Check if there was an AI analysis to count actions from\n  if (item.json.ai) {\n  logEntry.analysis_model = item.json.ai.model || \"\";\n  if (Array.isArray(item.json.ai.actions)) {\n    logEntry.total_item_count = item.json.ai.actions.length;\n    logEntry.actionable_item_count = item.json.ai.actions.filter(\n      (a) => a.suggestedAction !== \"NONE\"\n    ).length;\n  }\n}\n\n\n  // If there was an error message from a previous step, log it\n  if (item.json.priority === 'junk' && item.json.summary) {\n    logEntry.has_error = true;\n    logEntry.error_message = item.json.summary;\n  }\n\n  finalLogs.push({ json: logEntry });\n}\n\nreturn finalLogs;\n"
       },
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        3856,
-        -144
+        3648,
+        -240
       ],
       "id": "2a5a716c-c0ea-40b9-813d-8fc838b63c81",
       "name": "Format: Audit Log"
@@ -518,8 +486,8 @@
       "type": "n8n-nodes-base.postgres",
       "typeVersion": 2.6,
       "position": [
-        4080,
-        -144
+        3872,
+        -240
       ],
       "id": "bb48b2c0-184e-46b3-b6f3-21bd5358dc13",
       "name": "Postgres: Write Log",
@@ -538,8 +506,8 @@
       "type": "n8n-nodes-base.gmail",
       "typeVersion": 2.1,
       "position": [
-        4304,
-        -144
+        4320,
+        -240
       ],
       "id": "1301eb0c-3257-4122-b912-16eadb02bb2d",
       "name": "Gmail: Mark Read",
@@ -560,8 +528,8 @@
       "type": "n8n-nodes-base.merge",
       "typeVersion": 3.2,
       "position": [
-        1168,
-        -192
+        960,
+        -288
       ],
       "id": "4fa9e65b-ef71-4f17-bd95-bed4b7a4cb51",
       "name": "Merge: AI Inputs"
@@ -575,8 +543,8 @@
       "type": "n8n-nodes-base.merge",
       "typeVersion": 3.2,
       "position": [
-        1616,
-        -192
+        1408,
+        -288
       ],
       "id": "d369b959-797e-421d-ade7-7b7809ab2788",
       "name": "Merge: Triage State"
@@ -590,8 +558,8 @@
       "type": "n8n-nodes-base.merge",
       "typeVersion": 3.2,
       "position": [
-        2736,
-        -272
+        2528,
+        -360
       ],
       "id": "02b13fe2-e152-4ff6-bd56-6d43dfbc651e",
       "name": "Merge: Analysis State"
@@ -605,8 +573,8 @@
       "type": "n8n-nodes-base.merge",
       "typeVersion": 3.2,
       "position": [
-        3632,
-        -32
+        3424,
+        -120
       ],
       "id": "7a768d40-2780-48fd-9087-b5047686abf5",
       "name": "Merge: Sync Junk Flow"
@@ -620,11 +588,175 @@
       "type": "n8n-nodes-base.merge",
       "typeVersion": 3.2,
       "position": [
-        3632,
-        -272
+        3424,
+        -360
       ],
       "id": "b574ee95-594a-4ca3-9edf-db31675fddff",
       "name": "Merge: Sync Success Flow"
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "2346f58e-39a0-4ab6-b4e1-940070bed132",
+              "name": "text",
+              "value": "={{ $json[\"Analysis / Summary\"] }}",
+              "type": "string"
+            },
+            {
+              "id": "9c3210d2-c421-4e6d-90ff-97427099cc0a",
+              "name": "subject",
+              "value": "={{ $json.Subject }}",
+              "type": "string"
+            },
+            {
+              "id": "3fe2ee30-862f-4a1b-91e2-046190fb9af5",
+              "name": "from",
+              "value": "={{ $json.From }}",
+              "type": "string"
+            },
+            {
+              "id": "ca105852-a0e1-47d8-a286-a092c216220b",
+              "name": "date",
+              "value": "={{ $json.submittedAt }}",
+              "type": "string"
+            },
+            {
+              "id": "719af85b-cc62-44b8-a65f-f2b5f49ab3c2",
+              "name": "messageId",
+              "value": "={{ $json.run_id }}",
+              "type": "string"
+            },
+            {
+              "id": "b1a1ca3b-b82e-49c1-8432-e7deb521c777",
+              "name": "isFromForm",
+              "value": true,
+              "type": "boolean"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        64,
+        -360
+      ],
+      "id": "367cb604-7a43-471f-8d47-5c895c274dda",
+      "name": "Format: Manual Input"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "e1a5cb14-8e22-41a9-9a87-152e59442d70",
+              "leftValue": "={{$items().length}}",
+              "rightValue": 0,
+              "operator": {
+                "type": "number",
+                "operation": "gt"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        288,
+        -288
+      ],
+      "id": "773262ec-08da-44a3-8f12-a503a549fcac",
+      "name": "Check: Found Items?"
+    },
+    {
+      "parameters": {
+        "formTitle": "Portfolio Analyst Input",
+        "formFields": {
+          "values": [
+            {
+              "fieldLabel": "Subject",
+              "requiredField": true
+            },
+            {
+              "fieldLabel": "From",
+              "defaultValue": "Manual Input"
+            },
+            {
+              "fieldLabel": "Analysis / Summary",
+              "fieldType": "textarea"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.formTrigger",
+      "typeVersion": 2.3,
+      "position": [
+        -384,
+        -360
+      ],
+      "id": "7f1484a3-6f51-4fb6-8dbe-f9bab471dd68",
+      "name": "On form submission",
+      "webhookId": "3cf37db3-bc24-4d0a-983c-e88afcab9fcc"
+    },
+    {
+      "parameters": {
+        "jsCode": "const run_id = new Date().toISOString() + '-' + Math.random().toString(36).substring(2, 9);\n\n// Add the run_id to all items.\nfor (const item of items) {\n  item.json.run_id = run_id;\n}\nreturn items;"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -160,
+        -360
+      ],
+      "id": "8b2286b5-d942-4810-a64c-00476acee513",
+      "name": "Generate Run ID1"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 3
+          },
+          "conditions": [
+            {
+              "id": "c587c14a-4fda-40a9-8f73-4d63ed66ddaa",
+              "leftValue": "={{ $json.message_id }}",
+              "rightValue": "",
+              "operator": {
+                "type": "string",
+                "operation": "notEmpty",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [
+        4096,
+        -240
+      ],
+      "id": "850d21eb-b5c8-4984-bd22-c20ec92c95d5",
+      "name": "Check: Is From Email?"
     }
   ],
   "pinData": {},
@@ -677,23 +809,7 @@
       "main": [
         [
           {
-            "node": "Check: Found Emails?",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    },
-    "Check: Found Emails?": {
-      "main": [
-        [
-          {
-            "node": "HTML Cleaner",
-            "type": "main",
-            "index": 0
-          },
-          {
-            "node": "Postgres: Load Portfolio",
+            "node": "Check: Found Items?",
             "type": "main",
             "index": 0
           }
@@ -858,7 +974,7 @@
       "main": [
         [
           {
-            "node": "Gmail: Mark Read",
+            "node": "Check: Is From Email?",
             "type": "main",
             "index": 0
           }
@@ -929,13 +1045,73 @@
           }
         ]
       ]
+    },
+    "Format: Manual Input": {
+      "main": [
+        [
+          {
+            "node": "Check: Found Items?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Check: Found Items?": {
+      "main": [
+        [
+          {
+            "node": "HTML Cleaner",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Postgres: Load Portfolio",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "On form submission": {
+      "main": [
+        [
+          {
+            "node": "Generate Run ID1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Generate Run ID1": {
+      "main": [
+        [
+          {
+            "node": "Format: Manual Input",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Check: Is From Email?": {
+      "main": [
+        [
+          {
+            "node": "Gmail: Mark Read",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
     }
   },
   "active": true,
   "settings": {
     "executionOrder": "v1"
   },
-  "versionId": "14385da9-3cc3-4d28-9a66-0eec46a159a3",
+  "versionId": "550b2f7e-e9da-42e3-833e-a7588456d45b",
   "meta": {
     "templateCredsSetupCompleted": true,
     "instanceId": "cd895a9f6c2651ad7fd857e15b6c33cb345eeb79c98c7027b52c0557880d7a7e"
