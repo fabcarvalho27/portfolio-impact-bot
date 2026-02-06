@@ -1,0 +1,985 @@
+{
+  "name": "Portfolio Impact - Collector",
+  "nodes": [
+    {
+      "parameters": {},
+      "type": "n8n-nodes-base.manualTrigger",
+      "typeVersion": 1,
+      "position": [
+        -496,
+        272
+      ],
+      "id": "842cb656-23f1-4090-b099-44c032f1f7f1",
+      "name": "Manual Trigger",
+      "alwaysOutputData": false
+    },
+    {
+      "parameters": {
+        "operation": "getAll",
+        "returnAll": true,
+        "simple": false,
+        "filters": {
+          "labelIds": "={{$env.GMAIL_LABEL_ID}}",
+          "readStatus": "unread"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2.1,
+      "position": [
+        -272,
+        368
+      ],
+      "id": "d7fbe26f-12d2-418f-aa62-410a32e984fe",
+      "name": "Gmail Source: Unread",
+      "webhookId": "6fef2584-7c3f-4f03-8190-d40002ce96a9",
+      "alwaysOutputData": false,
+      "credentials": {
+        "gmailOAuth2": {
+          "id": "7lF7CmgPtrbr9xwy",
+          "name": "Gmail account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT\n  p.id as position_id,\n  s.symbol,\n  s.name as security_name,\n  p.qty,\n  p.open_price,\n  p.ccy,\n  p.thesis,\n  p.triggers,\n  p.time_horizon,\n  p.notes,\n  pr.close as current_price,\n  pr.as_of_date,\n  CASE\n      WHEN p.open_price > 0 THEN\n          ROUND(((pr.close - p.open_price) / p.open_price * 100)::numeric, 2)\n      ELSE 0\n  END as pnl_percent\nFROM invest_core.position p\nJOIN invest_core.security s ON s.id = p.security_id\nLEFT JOIN LATERAL (\n  SELECT close, as_of_date\n  FROM invest_core.price\n  WHERE security_id = s.id\n  ORDER BY as_of_date DESC\n  LIMIT 1\n) pr ON true\nWHERE p.qty > 0 AND s.asset_class = 'EQUITY'\nORDER BY s.symbol;",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.6,
+      "position": [
+        624,
+        368
+      ],
+      "id": "ab54e8f3-3b89-4f5f-9f73-c1f61cb99a72",
+      "name": "Postgres: Load Portfolio",
+      "executeOnce": true,
+      "credentials": {
+        "postgres": {
+          "id": "kMYfCk8MQVYfSRwu",
+          "name": "invest_n8n_app_write"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const positions = $('Postgres: Load Portfolio').all();\n\n// Group positions by symbol (user may have multiple positions per symbol)\nconst bySymbol = {};\nfor (const item of positions) {\n  const p = item.json;\n  if (!bySymbol[p.symbol]) {\n    bySymbol[p.symbol] = {\n      symbol: p.symbol,\n      name: p.security_name,\n      positions: []\n    };\n  }\n  bySymbol[p.symbol].positions.push({\n    qty: p.qty,\n    avgCost: p.avg_cost,\n    pnlPercent: p.pnl_percent,\n    currentPrice: p.current_price,\n    timeHorizon: p.time_horizon,\n    thesis: p.thesis,\n    triggers: p.triggers,\n    notes: p.notes\n  });\n}\n\n// Format as readable string for AI\nconst lines = [];\nfor (const [symbol, data] of Object.entries(bySymbol)) {\n  for (const pos of data.positions) {\n    const pnlStr = pos.pnlPercent >= 0 ? `+${pos.pnlPercent}%` : `${pos.pnlPercent}%`;\n    lines.push(`${symbol} | ${pos.timeHorizon || 'unknown'} | ${pnlStr} | Thesis: ${pos.thesis || 'Not specified'}`);\n    if (pos.triggers && pos.triggers.length > 0) {\n      lines.push(`  Triggers: ${JSON.stringify(pos.triggers)}`);\n    }\n  }\n}\n\nreturn [{\n  json: {\n    portfolioContext: lines.join('\\n'),\n    symbolList: Object.keys(bySymbol),\n    positionCount: positions.length\n  }\n}];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        848,
+        368
+      ],
+      "id": "5717478d-e97a-4004-8cfc-65b1627c030e",
+      "name": "Format Portfolio Context"
+    },
+    {
+      "parameters": {
+        "modelId": {
+          "__rl": true,
+          "value": "={{$env.OPEN_AI_SUMMARY_MODEL}}",
+          "mode": "id"
+        },
+        "responses": {
+          "values": [
+            {
+              "role": "system",
+              "content": "=You are an expert financial news editor. Your task is to process a noisy email that may contain multiple articles. You must identify every distinct article, create a concise summary for each one, classify the overall priority, and categorize the news for pattern tracking.\n\nPerform the following steps:\n1. Read the entire email body and identify ALL distinct news articles, ignoring promotional text and boilerplate.\n2. For each article, write a short, fact-based summary.\n3. Combine all summaries into a single text block. Start each with its headline in bold.\n4. Classify overall priority as 'high', 'normal', or 'junk':\n   - 'high': Directly mentions portfolio symbols, challenges/validates thesis, or triggers alert conditions\n   - 'normal': General financial news with indirect relevance\n   - 'junk': Promotion, ad, or non-news content\n5. News that challenges or validates a user's investment thesis is ALWAYS 'high' priority.\n6. When in doubt, classify as 'normal', not 'junk'.\n7. Identify news categories from: earnings, guidance, regulatory, legal, product_launch, partnership, acquisition, management, competition, macro, analyst_rating, supply_chain, other\n8. Extract primary stock symbols mentioned (portfolio symbols only).\n\nRespond with ONLY valid JSON."
+            },
+            {
+              "content": "=The user's portfolio context is:\n{{ $('Format Portfolio Context').first().json.portfolioContext }}\n\nAnalyze the following email:\n- Sender: {{ $('Format Input').first().json.from }}\n- Subject: {{ $('Format Input').first().json.subject }}\n- Body: {{ $('Format Input').first().json.body }}\n\nRequired JSON format:\n{\n  \"priority\": \"high|normal|junk\",\n  \"confidence\": 0.0-1.0,\n  \"summary\": \"Combined summaries of all articles\",\n  \"categories\": [\"regulatory\", \"earnings\"],\n  \"primarySymbols\": [\"NVDA\", \"AAPL\"]\n}"
+            }
+          ]
+        },
+        "builtInTools": {},
+        "options": {
+          "maxTokens": 1000,
+          "textFormat": {
+            "textOptions": {
+              "type": "json_object"
+            }
+          },
+          "temperature": 0.3
+        }
+      },
+      "type": "@n8n/n8n-nodes-langchain.openAi",
+      "typeVersion": 2,
+      "position": [
+        1296,
+        368
+      ],
+      "id": "9d9996e1-1a77-40c8-a647-5c9cb5c8b8c8",
+      "name": "AI Agent: Triage",
+      "credentials": {
+        "openAiApi": {
+          "id": "ru3zX3RIfX1V4xmm",
+          "name": "OpenAi account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 3
+          },
+          "conditions": [
+            {
+              "id": "8db1b1c0-85e0-497d-ab82-505ed928dfcf",
+              "leftValue": "={{ $('Guard: Triage').first().json.priority }}",
+              "rightValue": "junk",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [
+        1744,
+        368
+      ],
+      "id": "557571fb-7c73-4702-a55b-6cebb2a021e4",
+      "name": "Check: Is Junk?"
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "2346f58e-39a0-4ab6-b4e1-940070bed132",
+              "name": "text",
+              "value": "={{ $json[\"Analysis / Summary\"] }}",
+              "type": "string"
+            },
+            {
+              "id": "9c3210d2-c421-4e6d-90ff-97427099cc0a",
+              "name": "subject",
+              "value": "={{ $json.Subject }}",
+              "type": "string"
+            },
+            {
+              "id": "3fe2ee30-862f-4a1b-91e2-046190fb9af5",
+              "name": "from",
+              "value": "={{ $json.From }}",
+              "type": "string"
+            },
+            {
+              "id": "ca105852-a0e1-47d8-a286-a092c216220b",
+              "name": "date",
+              "value": "={{ $json.submittedAt }}",
+              "type": "string"
+            },
+            {
+              "id": "b1a1ca3b-b82e-49c1-8432-e7deb521c777",
+              "name": "source",
+              "value": "form",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        -272,
+        80
+      ],
+      "id": "573780c6-d879-4707-b23d-30ba311f8310",
+      "name": "Format: Manual Input"
+    },
+    {
+      "parameters": {
+        "formTitle": "Portfolio Analyst Input",
+        "formFields": {
+          "values": [
+            {
+              "fieldLabel": "Subject",
+              "requiredField": true
+            },
+            {
+              "fieldLabel": "From",
+              "defaultValue": "Manual Input"
+            },
+            {
+              "fieldLabel": "Analysis / Summary",
+              "fieldType": "textarea"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.formTrigger",
+      "typeVersion": 2.3,
+      "position": [
+        -496,
+        80
+      ],
+      "id": "d72ea703-e97b-4bd5-a713-95b2bb357f8f",
+      "name": "On form submission",
+      "webhookId": "a2b3ced4-b9a3-4980-bb15-a91ae0bb1c41"
+    },
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "7bf53034-db15-404f-9fc9-8c30a28c7430",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2.1,
+      "position": [
+        -496,
+        464
+      ],
+      "id": "d9b33dc8-2266-469d-8f48-2b0f5244bcd7",
+      "name": "Webhook",
+      "webhookId": "7bf53034-db15-404f-9fc9-8c30a28c7430"
+    },
+    {
+      "parameters": {
+        "jsCode": "const now = new Date();\nconst runId = `collector-${now.toISOString().replace(/[:.]/g, '-')}`;\n\nreturn [{\n  json: {\n    runId,\n    timestamp: now.toISOString(),\n    weekYear: now.getFullYear(),\n    weekNumber: getWeekNumber(now)\n  }\n}];\n\nfunction getWeekNumber(date) {\n  const d = new Date(Date.UTC(date.getFullYear(), date.getMonth(), date.getDate()));\n  const dayNum = d.getUTCDay() || 7;\n  d.setUTCDate(d.getUTCDate() + 4 - dayNum);\n  const yearStart = new Date(Date.UTC(d.getUTCFullYear(), 0, 1));\n  return Math.ceil((((d - yearStart) / 86400000) + 1) / 7);\n}"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        176,
+        368
+      ],
+      "id": "12dd8772-16f2-4342-bbe2-9acd348704e5",
+      "name": "Generate Run ID"
+    },
+    {
+      "parameters": {
+        "pollTimes": {
+          "item": [
+            {
+              "mode": "everyHour"
+            }
+          ]
+        },
+        "simple": false,
+        "filters": {
+          "labelIds": "={{$env.GMAIL_LABEL_ID}}"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.gmailTrigger",
+      "typeVersion": 1.3,
+      "position": [
+        -272,
+        560
+      ],
+      "id": "9e8db4ab-9f76-4a39-a58e-31217a3a4354",
+      "name": "Gmail Trigger",
+      "credentials": {
+        "gmailOAuth2": {
+          "id": "7lF7CmgPtrbr9xwy",
+          "name": "Gmail account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "return [{\n  json: {\n    // Scoring weights for composite calculation\n    scoring: {\n      weights: {\n        relevance: 0.35,\n        materiality: 0.30,\n        urgency: 0.20,\n        confidence: 0.15\n      }\n    },\n\n    // Immediate alert settings\n    immediateAlerts: {\n      enabled: true,\n      urgencyThreshold: 80,\n      watchlistSymbols: [\n        // Add symbols that should ALWAYS alert immediately\n        // 'NVDA',  // Example: earnings play\n        // 'TSLA',  // Example: high volatility\n      ]\n    },\n\n    // Valid categories for pattern tracking\n    validCategories: [\n      'earnings', 'guidance', 'regulatory', 'legal',\n      'product_launch', 'partnership', 'acquisition',\n      'management', 'competition', 'macro',\n      'analyst_rating', 'supply_chain', 'other'\n    ],\n\n    // Triage confidence threshold\n    triageConfidenceThreshold: 0.65\n  }\n}];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        400,
+        368
+      ],
+      "id": "ee8868a1-6cb3-4bb7-a6f1-4c79ea7cc687",
+      "name": "Config: Settings"
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "// Get original input from Store Input node\nconst input = $('Store Input').first().json;\n\nlet sourceType, subject, body, from, emailDate, messageId;\n\n// Gmail source\nif (input.threadId || input.id || input.labelIds) {\n  sourceType = 'gmail';\n  subject = input.subject || 'No Subject';\n  body = input.text || input.snippet || input.body || '';\n  from = input.from?.emailAddress || input.from || 'Unknown';\n  emailDate = input.date || input.internalDate || new Date().toISOString();\n  messageId = input.id || input.threadId || null;\n}\n// Form source\nelse if (input.submittedAt) {\n  sourceType = 'form';\n  subject = input.Subject || input.subject || 'Manual Submission';\n  body = input.Body || input.body || '';\n  from = input.Source || input.source || 'manual';\n  emailDate = input.submittedAt;\n  messageId = null;\n}\n// Webhook or other\nelse {\n  sourceType = 'webhook';\n  subject = input.subject || input.title || 'Webhook Input';\n  body = input.body || input.content || input.text || JSON.stringify(input);\n  from = input.source || input.from || 'webhook';\n  emailDate = input.date || new Date().toISOString();\n  messageId = input.id || null;\n}\n\nreturn {\n  json: {\n    sourceType,\n    subject,\n    body: body.substring(0, 50000),\n    from,\n    emailDate,\n    messageId\n  }\n};"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1072,
+        368
+      ],
+      "id": "a7ca97e0-8af1-4fbc-bba4-1116abc3ec5d",
+      "name": "Format Input"
+    },
+    {
+      "parameters": {
+        "jsCode": "return {\n  json: $input.item.json\n};"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -48,
+        368
+      ],
+      "id": "d9008591-24c6-4330-b14c-c6beca935aa6",
+      "name": "Store Input"
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "const config = $('Config: Settings').first().json;\nconst rawOutput = $input.item.json;\n\n// Parse AI response - handle multiple output formats\nlet parsed;\ntry {\n  // Format 1: OpenAI Responses API (output[].content[].text)\n  if (rawOutput.output?.[0]?.content?.[0]?.text) {\n    const text = rawOutput.output[0].content[0].text;\n    parsed = typeof text === 'string' ? JSON.parse(text) : text;\n  }\n  // Format 2: OpenAI Chat Completion (message.content)\n  else if (rawOutput.message?.content) {\n    const content = rawOutput.message.content;\n    parsed = typeof content === 'string'\n      ? JSON.parse(content.replace(/```json\\n?|\\n?```/g, '').trim())\n      : content;\n  }\n  // Format 3: Direct content property\n  else if (rawOutput.content) {\n    const content = rawOutput.content;\n    parsed = typeof content === 'string'\n      ? JSON.parse(content.replace(/```json\\n?|\\n?```/g, '').trim())\n      : content;\n  }\n  // Format 4: Raw string\n  else if (typeof rawOutput === 'string') {\n    parsed = JSON.parse(rawOutput.replace(/```json\\n?|\\n?```/g, '').trim());\n  }\n  // Format 5: Already parsed object with expected fields\n  else if (rawOutput.priority) {\n    parsed = rawOutput;\n  }\n  else {\n    throw new Error('Unknown AI output format');\n  }\n} catch (e) {\n  parsed = {\n    priority: 'normal',\n    confidence: 0.5,\n    summary: 'Failed to parse triage output: ' + e.message,\n    categories: ['other'],\n    primarySymbols: []\n  };\n}\n\n// Validate priority\nconst validPriorities = ['high', 'normal', 'junk'];\nlet priority = validPriorities.includes(parsed.priority) ? parsed.priority : null;\n\n// Validate confidence (0-1)\nconst confidence = Math.min(1, Math.max(0, parseFloat(parsed.confidence)));\n\n// Downgrade low-confidence high priority\nif (priority === 'high' && confidence < config.triageConfidenceThreshold) {\n  priority = 'normal';\n}\n\n// Validate categories\nconst categories = (parsed.categories || [])\n  .filter(c => config.validCategories.includes(c));\n\n// Validate symbols against portfolio\nconst portfolioSymbols = $('Format Portfolio Context').first().json.symbolList;\nconst primarySymbols = (parsed.primarySymbols || [])\n  .filter(s => portfolioSymbols.includes(s.toUpperCase()))\n  .map(s => s.toUpperCase());\n\nreturn {\n  json: {\n    priority,\n    confidence,\n    summary: parsed.summary || 'No summary provided',\n    categories: categories.length > 0 ? categories : ['other'],\n    primarySymbols\n  }\n};"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1520,
+        368
+      ],
+      "id": "a697ae21-5a95-47f7-ad94-50e93efa385f",
+      "name": "Guard: Triage"
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "const runInfo = $('Generate Run ID').first().json;\nconst input = $('Format Input').first().json;\nconst triage = $('Guard: Triage').first().json;\n\nreturn {\n  json: {\n    week_year: runInfo.weekYear,\n    week_number: runInfo.weekNumber,\n    run_id: runInfo.runId,\n    source_type: input.sourceType,\n    email_subject: input.subject,\n    email_from: input.from,\n    email_date: input.emailDate,\n    triage_priority: 'junk',\n    triage_confidence: triage.confidence,\n    triage_summary: triage.summary,\n    news_categories: triage.categories\n  }\n};"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1968,
+        272
+      ],
+      "id": "52c0ad07-3aa3-4a88-85ac-508f561d3133",
+      "name": "Format: Junk Record"
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "INSERT INTO invest_audit.news_collection (\n    week_year,\n    week_number,\n    run_id,\n    source_type,\n    email_subject,\n    email_from,\n    email_date,\n    triage_priority,\n    triage_confidence,\n    triage_summary,\n    news_categories\n) VALUES (\n    {{ $('Format: Junk Record').first().json.week_year }},\n    {{ $('Format: Junk Record').first().json.week_number }},\n    '{{ $('Format: Junk Record').first().json.run_id }}',\n    '{{ $('Format: Junk Record').first().json.source_type }}',\n    '{{ $('Format: Junk Record').first().json.email_subject.replace(/'/g, \"''\") }}',\n    '{{ $('Format: Junk Record').first().json.email_from.replace(/'/g, \"''\") }}',\n    '{{ $('Format: Junk Record').first().json.email_date }}'::timestamptz,\n    'junk',\n    {{ $('Format: Junk Record').first().json.triage_confidence }},\n    '{{ $('Format: Junk Record').first().json.triage_summary.replace(/'/g, \"''\").substring(0, 5000) }}',\n    ARRAY[{{ $('Format: Junk Record').first().json.news_categories.map(c => `'${c}'`).join(',') }}]::text[]\n);",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.6,
+      "position": [
+        2192,
+        272
+      ],
+      "id": "a2df0ba3-9848-4948-b211-97d94fdc3d3b",
+      "name": "Postgres: Save Junk",
+      "executeOnce": true,
+      "credentials": {
+        "postgres": {
+          "id": "kMYfCk8MQVYfSRwu",
+          "name": "invest_n8n_app_write"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "modelId": {
+          "__rl": true,
+          "value": "={{ $('Guard: Triage').first().json.priority === 'high' ? $env.OPEN_AI_EXPENSIVE_MODEL : $env.OPEN_AI_CHEAP_MODEL }}",
+          "mode": "id"
+        },
+        "responses": {
+          "values": [
+            {
+              "role": "system",
+              "content": "=You are a disciplined equity/ETF news impact analyst. The user is a swing trader and long-term investor with positions at different time horizons.\n\nYour job is to assess how news impacts SPECIFIC positions, considering:\n- The user's stated investment thesis for each position\n- Their time horizon (days/weeks = react quickly, months/years = filter noise)\n- Their current P&L (underwater positions vs profitable ones)\n- Any trigger conditions they've set\n\nBe concise, quantify when reasonable, avoid hype. No financial advice; focus on impact pathways.\n\nFor each action, assign a category from: earnings, guidance, regulatory, legal, product_launch, partnership, acquisition, management, competition, macro, analyst_rating, supply_chain, other.\n\nAlways return STRICT JSON matching the schema."
+            },
+            {
+              "content": "=NEWS:\n{{ $('Guard: Triage').first().json.summary }}\n\nPORTFOLIO CONTEXT (with thesis, triggers, and P&L): {{ $('Format Portfolio Context').first().json.portfolioContext }}\n\nREQUIREMENTS:\n- Evaluate impact on EACH relevant position separately\n- For each position, assess if news VALIDATES, CHALLENGES, or is NEUTRAL to their stated thesis\n- Assign a category to each action for pattern tracking\n- Score relevance, materiality, and urgency (0-100)\n- If no meaningful effect, actions can be []\n\nRequired JSON format:\n{\n  \"summary\": \"1-2 lines on what matters for THIS portfolio\",\n  \"actions\": [\n    {\n      \"symbol\": \"NVDA\",\n      \"category\": \"regulatory\",\n      \"positionContext\": \"years, +45%, thesis: AI infrastructure\",\n      \"impact\": \"China export restrictions threaten 20% of datacenter revenue\",\n      \"thesisImpact\": \"challenges\",\n      \"suggestedAction\": \"REVIEW\",\n      \"actionRationale\": \"Thesis assumes China market access\",\n      \"confidence\": 75,\n      \"relevanceScore\": 90,\n      \"materialityScore\": 70,\n      \"urgencyScore\": 40\n    }\n  ],\n  \"triggersHit\": [\"NVDA: news_category=regulatory\"],\n  \"notes\": \"optional\"\n}"
+            }
+          ]
+        },
+        "builtInTools": {},
+        "options": {
+          "maxTokens": 1500,
+          "textFormat": {
+            "textOptions": {
+              "type": "json_object"
+            }
+          },
+          "temperature": 0.3
+        }
+      },
+      "type": "@n8n/n8n-nodes-langchain.openAi",
+      "typeVersion": 2,
+      "position": [
+        1968,
+        464
+      ],
+      "id": "fe7dbc4c-3c2f-4ada-8c6b-979044ffdd45",
+      "name": "AI Agent: Analysis",
+      "credentials": {
+        "openAiApi": {
+          "id": "ru3zX3RIfX1V4xmm",
+          "name": "OpenAi account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "const config = $('Config: Settings').first().json;\nconst portfolioSymbols = $('Format Portfolio Context').first().json.symbolList;\nconst rawOutput = $input.item.json;\n\n// Parse AI response - handle multiple output formats\nlet parsed;\ntry {\n  // Format 1: OpenAI Responses API (output[].content[].text)\n  if (rawOutput.output?.[0]?.content?.[0]?.text) {\n    const text = rawOutput.output[0].content[0].text;\n    parsed = typeof text === 'string' ? JSON.parse(text) : text;\n  }\n  // Format 2: OpenAI Chat Completion (message.content)\n  else if (rawOutput.message?.content) {\n    const content = rawOutput.message.content;\n    parsed = typeof content === 'string'\n      ? JSON.parse(content.replace(/```json\\n?|\\n?```/g, '').trim())\n      : content;\n  }\n  // Format 3: Direct content property\n  else if (rawOutput.content) {\n    const content = rawOutput.content;\n    parsed = typeof content === 'string'\n      ? JSON.parse(content.replace(/```json\\n?|\\n?```/g, '').trim())\n      : content;\n  }\n  // Format 4: Already parsed object with expected fields\n  else if (rawOutput.summary !== undefined || rawOutput.actions !== undefined) {\n    parsed = rawOutput;\n  }\n  else {\n    throw new Error('Unknown AI output format');\n  }\n} catch (e) {\n  parsed = {\n    summary: 'Failed to parse analysis output: ' + e.message,\n    actions: [],\n    triggersHit: [],\n    notes: ''\n  };\n}\n\n// Validate and sanitize actions\nconst validThesisImpacts = ['validates', 'neutral', 'challenges'];\nconst validSuggestedActions = ['REVIEW', 'WATCH', 'HOLD', 'TRIM', 'ADD', 'REDUCE', 'NONE'];\n\nconst actions = (parsed.actions || []).map(action => ({\n  symbol: portfolioSymbols.includes(action.symbol?.toUpperCase())\n    ? action.symbol.toUpperCase()\n    : null,\n  category: config.validCategories.includes(action.category)\n    ? action.category\n    : 'other',\n  positionContext: action.positionContext || '',\n  impact: action.impact || '',\n  thesisImpact: validThesisImpacts.includes(action.thesisImpact)\n    ? action.thesisImpact\n    : 'neutral',\n  suggestedAction: validSuggestedActions.includes(action.suggestedAction)\n    ? action.suggestedAction\n    : 'NONE',\n  actionRationale: action.actionRationale || '',\n  confidence: Math.min(100, Math.max(0, parseInt(action.confidence) || 50)),\n  relevanceScore: Math.min(100, Math.max(0, parseInt(action.relevanceScore) || 0)),\n  materialityScore: Math.min(100, Math.max(0, parseInt(action.materialityScore) || 0)),\n  urgencyScore: Math.min(100, Math.max(0, parseInt(action.urgencyScore) || 0))\n})).filter(a => a.symbol !== null);\n\nreturn {\n  json: {\n    summary: parsed.summary || 'No summary',\n    actions,\n    triggersHit: parsed.triggersHit || [],\n    notes: parsed.notes || ''\n  }\n};"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2192,
+        464
+      ],
+      "id": "e7da537a-3f2f-465f-8f23-12840c1e5a39",
+      "name": "Guard: Analysis"
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "const config = $('Config: Settings').first().json;\nconst triage = $('Guard: Triage').first().json;\nconst analysis = $('Guard: Analysis').first().json;\n\nconst weights = config.scoring.weights;\n\n// Calculate max scores across all actions\nlet maxUrgency = 0;\nlet maxRelevance = 0;\nlet maxMateriality = 0;\nlet maxConfidence = 0;\nlet watchlistHit = null;\nconst symbolsImpacted = [];\nconst thesisImpacts = [];\nconst categoriesFound = new Set(triage.categories || []);\n\nfor (const action of analysis.actions || []) {\n  maxUrgency = Math.max(maxUrgency, action.urgencyScore || 0);\n  maxRelevance = Math.max(maxRelevance, action.relevanceScore || 0);\n  maxMateriality = Math.max(maxMateriality, action.materialityScore || 0);\n  maxConfidence = Math.max(maxConfidence, action.confidence || 0);\n\n  if (!symbolsImpacted.includes(action.symbol)) {\n    symbolsImpacted.push(action.symbol);\n  }\n\n  thesisImpacts.push({\n    symbol: action.symbol,\n    impact: action.thesisImpact\n  });\n\n  if (action.category) {\n    categoriesFound.add(action.category);\n  }\n\n  // Check watchlist\n  if (config.immediateAlerts.watchlistSymbols.includes(action.symbol)) {\n    watchlistHit = action.symbol;\n  }\n}\n\n// Calculate composite score\nconst compositeScore = Math.round(\n  (maxRelevance * weights.relevance) +\n  (maxMateriality * weights.materiality) +\n  (maxUrgency * weights.urgency) +\n  ((triage.confidence || 0.5) * 100 * weights.confidence)\n);\n\n// Determine if immediate alert needed\nconst urgencyTriggered = maxUrgency > config.immediateAlerts.urgencyThreshold;\nconst shouldAlertImmediately = config.immediateAlerts.enabled &&\n  (urgencyTriggered || watchlistHit !== null);\n\nconst alertReason = urgencyTriggered\n  ? 'urgency_threshold'\n  : watchlistHit\n    ? 'watchlist_symbol'\n    : null;\n\nreturn {\n  json: {\n    maxUrgency,\n    maxRelevance,\n    maxMateriality,\n    maxConfidence,\n    compositeScore,\n    shouldAlertImmediately,\n    alertReason,\n    watchlistHit,\n    symbolsImpacted,\n    thesisImpacts,\n    categories: Array.from(categoriesFound)\n  }\n};"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2416,
+        464
+      ],
+      "id": "f2991c65-d99e-46fc-91cc-fbb30f7951f5",
+      "name": "Calculate Scores"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 3
+          },
+          "conditions": [
+            {
+              "id": "cf337196-819b-4c43-881c-cef5ea34e5b7",
+              "leftValue": "={{ $('Calculate Scores').first().json.shouldAlertImmediately }}",
+              "rightValue": "",
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [
+        2640,
+        464
+      ],
+      "id": "abcdb2e2-3efb-47da-83da-dbc3d8bb7d1e",
+      "name": "Check: Immediate Alert?"
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "const input = $('Format Input').first().json;\nconst triage = $('Guard: Triage').first().json;\nconst analysis = $('Guard: Analysis').first().json;\nconst scores = $('Calculate Scores').first().json;\n\n// Helper to escape HTML\nconst esc = (str) => String(str || '')\n  .replace(/&/g, '&amp;')\n  .replace(/</g, '&lt;')\n  .replace(/>/g, '&gt;');\n\n// Build urgent alert message\nconst lines = [\n  '🚨 <b>URGENT PORTFOLIO ALERT</b>',\n  ''\n];\n\n// Alert reason\nif (scores.alertReason === 'urgency_threshold') {\n  lines.push(`⚠️ <b>Urgency Score:</b> ${scores.maxUrgency}/100`);\n} else if (scores.alertReason === 'watchlist_symbol') {\n  lines.push(`👁️ <b>Watchlist Symbol:</b> ${esc(scores.watchlistHit)}`);\n}\n\nlines.push('');\nlines.push(`📧 <b>Subject:</b> ${esc(input.subject.substring(0, 100))}`);\nlines.push(`📨 <b>From:</b> ${esc(input.from.value[0].address)}`);\nlines.push('');\n\n// Summary\nlines.push('<b>Summary:</b>');\nlines.push(esc(triage.summary.substring(0, 800)));\nlines.push('');\n\n// Impacted positions\nif (analysis.actions.length > 0) {\n  lines.push('<b>Impacted Positions:</b>');\n\n  for (const action of analysis.actions.slice(0, 5)) {\n    const emoji = action.thesisImpact === 'challenges' ? '🔴'\n      : action.thesisImpact === 'validates' ? '🟢' : '⚪';\n\n    lines.push(`${emoji} <b>${esc(action.symbol)}</b> → ${esc(action.suggestedAction)}`);\n    lines.push(`   <i>${esc(action.impact.substring(0, 150))}</i>`);\n    lines.push(`   Relevance: ${action.relevanceScore} | Materiality: ${action.materialityScore} | Urgency:\n${action.urgencyScore}`);\n    lines.push('');\n  }\n\n  if (analysis.actions.length > 5) {\n    lines.push(`<i>...and ${analysis.actions.length - 5} more positions</i>`);\n    lines.push('');\n  }\n}\n\n// Triggers hit\nif (analysis.triggersHit && analysis.triggersHit.length > 0) {\n  lines.push('<b>Triggers Hit:</b>');\n  for (const trigger of analysis.triggersHit.slice(0, 3)) {\n    lines.push(`• ${esc(trigger)}`);\n  }\n  lines.push('');\n}\n\n// Footer\nlines.push(`📊 <b>Composite Score:</b> ${scores.compositeScore}/100`);\nlines.push('');\nlines.push('<i>Review and take action if needed.</i>');\n\nreturn {\n  json: {\n    message: lines.join('\\n'),\n    parseMode: 'HTML'\n  }\n};"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2864,
+        392
+      ],
+      "id": "fbe19a26-4de0-441e-8d71-5de20f3481ae",
+      "name": "Format: Urgent Alert"
+    },
+    {
+      "parameters": {
+        "chatId": "={{ $env.TELEGRAM_CHAT_ID }}",
+        "text": "={{ $('Format: Urgent Alert').first().json.message }}",
+        "additionalFields": {
+          "parse_mode": "={{ $('Format: Urgent Alert').first().json.parseMode }}"
+        }
+      },
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [
+        3088,
+        392
+      ],
+      "id": "d96afccd-70ba-4934-a356-7b7a68b66f24",
+      "name": "Send a text message",
+      "webhookId": "838eab08-ac88-4c0c-8b1a-72d741741bd2",
+      "credentials": {
+        "telegramApi": {
+          "id": "L9cwZfU7yp7HcB8K",
+          "name": "Telegram investments bot"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "const runInfo = $('Generate Run ID').first().json;\nconst input = $('Format Input').first().json;\nconst triage = $('Guard: Triage').first().json;\nconst analysis = $('Guard: Analysis').first().json;\nconst scores = $('Calculate Scores').first().json;\n\n// Helper to escape single quotes for SQL\nconst esc = (str) => String(str || '').replace(/'/g, \"''\");\n\nreturn {\n  json: {\n    // Time bucketing\n    week_year: runInfo.weekYear,\n    week_number: runInfo.weekNumber,\n\n    // Source identification\n    run_id: runInfo.runId,\n    source_type: input.sourceType,\n    email_subject: esc(input.subject),\n    email_from: esc(input.from),\n    email_date: input.emailDate,\n\n    // Triage output\n    triage_priority: triage.priority,\n    triage_confidence: triage.confidence,\n    triage_summary: esc(triage.summary.substring(0, 10000)),\n\n    // Analysis output\n    analysis_summary: esc(analysis.summary.substring(0, 5000)),\n    analysis_actions: JSON.stringify(analysis.actions),\n    symbols_impacted: scores.symbolsImpacted,\n    thesis_impacts: JSON.stringify(scores.thesisImpacts),\n    triggers_hit: analysis.triggersHit,\n\n    // Scoring\n    max_relevance_score: scores.maxRelevance,\n    max_materiality_score: scores.maxMateriality,\n    max_urgency_score: scores.maxUrgency,\n    composite_score: scores.compositeScore,\n\n    // Alert tracking\n    alert_sent: scores.shouldAlertImmediately,\n    alert_reason: scores.alertReason,\n    alert_sent_at: scores.shouldAlertImmediately ? new Date().toISOString() : null,\n\n    // Categories\n    news_categories: scores.categories\n  }\n};"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        3312,
+        464
+      ],
+      "id": "9dd06345-4996-4759-8391-b64c8197697e",
+      "name": "Format: Database Record"
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "INSERT INTO invest_audit.investing_news_collection (\n    week_year,\n    week_number,\n    run_id,\n    source_type,\n    email_subject,\n    email_from,\n    email_date,\n    triage_priority,\n    triage_confidence,\n    triage_summary,\n    analysis_summary,\n    analysis_actions,\n    symbols_impacted,\n    thesis_impacts,\n    triggers_hit,\n    max_relevance_score,\n    max_materiality_score,\n    max_urgency_score,\n    composite_score,\n    alert_sent,\n    alert_reason,\n    alert_sent_at,\n    news_categories\n) VALUES (\n    {{ $json.week_year }},\n    {{ $json.week_number }},\n    '{{ $json.run_id }}',\n    '{{ $json.source_type }}',\n    '{{ $json.email_subject }}',\n    '{{ $json.email_from }}',\n    {{ $json.email_date ? \"'\" + $json.email_date + \"'::timestamptz\" : \"NULL\" }},\n    '{{ $json.triage_priority }}',\n    {{ $json.triage_confidence }},\n    '{{ $json.triage_summary }}',\n    '{{ $json.analysis_summary }}',\n    '{{ $json.analysis_actions }}'::jsonb,\n    ARRAY[{{ $json.symbols_impacted.map(s => \"'\" + s + \"'\").join(',') || 'NULL' }}]::text[],\n    '{{ $json.thesis_impacts }}'::jsonb,\n    ARRAY[{{ $json.triggers_hit.map(t => \"'\" + t.replace(/'/g, \"''\") + \"'\").join(',') || 'NULL' }}]::text[],\n    {{ $json.max_relevance_score }},\n    {{ $json.max_materiality_score }},\n    {{ $json.max_urgency_score }},\n    {{ $json.composite_score }},\n    {{ $json.alert_sent }},\n    {{ $json.alert_reason ? \"'\" + $json.alert_reason + \"'\" : \"NULL\" }},\n    {{ $json.alert_sent_at ? \"'\" + $json.alert_sent_at + \"'::timestamptz\" : \"NULL\" }},\n    ARRAY[{{ $json.news_categories.map(c => \"'\" + c + \"'\").join(',') || 'NULL' }}]::text[]\n);",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.6,
+      "position": [
+        3536,
+        464
+      ],
+      "id": "8a506b1b-90c1-40c7-baf2-ec2bfc468511",
+      "name": "Postgres: Save News",
+      "credentials": {
+        "postgres": {
+          "id": "kMYfCk8MQVYfSRwu",
+          "name": "invest_n8n_app_write"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "const analysis = $('Guard: Analysis').first().json;\nconst scores = $('Calculate Scores').first().json;\n\n// Build UPSERT statements for each symbol+category combination\nconst upserts = [];\n\nfor (const action of analysis.actions || []) {\n  const symbol = action.symbol;\n  const category = action.category || 'other';\n  const compositeScore = scores.compositeScore || 0;\n\n  // Determine thesis impact column to increment\n  let thesisColumn;\n  if (action.thesisImpact === 'validates') {\n    thesisColumn = 'validates_count';\n  } else if (action.thesisImpact === 'challenges') {\n    thesisColumn = 'challenges_count';\n  } else {\n    thesisColumn = 'neutral_count';\n  }\n\n  upserts.push({\n    symbol,\n    category,\n    compositeScore,\n    thesisColumn\n  });\n}\n\nreturn {\n  json: {\n    upserts,\n    hasPatterns: upserts.length > 0\n  }\n};"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        3760,
+        464
+      ],
+      "id": "5db73585-1a70-4071-b65a-3f33e783cbb7",
+      "name": "Update Pattern History"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 3
+          },
+          "conditions": [
+            {
+              "id": "2b62d779-edec-4443-a31c-ace786dbeafd",
+              "leftValue": "={{ $json.hasPatterns }}",
+              "rightValue": "",
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [
+        3984,
+        464
+      ],
+      "id": "f76f82b9-29c7-4fe2-904a-1ea4cadcb165",
+      "name": "Check: Has Patterns?"
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "const upserts = $('Update Pattern History').first().json.upserts;\n\n// Build a single query with multiple UPSERTs\nconst statements = upserts.map(u => `\n  INSERT INTO invest_audit.investing_news_pattern_history (symbol, news_category, total_composite_score,\n${u.thesisColumn})\n  VALUES ('${u.symbol}', '${u.category}', ${u.compositeScore}, 1)\n  ON CONFLICT (symbol, news_category) DO UPDATE SET\n    occurrence_count = investing_news_pattern_history.occurrence_count + 1,\n    last_seen_at = NOW(),\n    total_composite_score = investing_news_pattern_history.total_composite_score + ${u.compositeScore},\n    ${u.thesisColumn} = investing_news_pattern_history.${u.thesisColumn} + 1\n`).join('; ');\n\nreturn {\n  json: {\n    query: statements\n  }\n};"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        4208,
+        464
+      ],
+      "id": "37b173e7-d09a-443b-be01-3f28307342bf",
+      "name": "Postgres: Update Patterns"
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "{{ $json.query }}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.6,
+      "position": [
+        4432,
+        464
+      ],
+      "id": "70af920b-27bd-43e7-8251-e820e2822a87",
+      "name": "Postgres: Execute Pattern Update",
+      "credentials": {
+        "postgres": {
+          "id": "kMYfCk8MQVYfSRwu",
+          "name": "invest_n8n_app_write"
+        }
+      }
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Manual Trigger": {
+      "main": [
+        [
+          {
+            "node": "Gmail Source: Unread",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Gmail Source: Unread": {
+      "main": [
+        [
+          {
+            "node": "Store Input",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        []
+      ]
+    },
+    "Postgres: Load Portfolio": {
+      "main": [
+        [
+          {
+            "node": "Format Portfolio Context",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Format Portfolio Context": {
+      "main": [
+        [
+          {
+            "node": "Format Input",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "AI Agent: Triage": {
+      "main": [
+        [
+          {
+            "node": "Guard: Triage",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Check: Is Junk?": {
+      "main": [
+        [
+          {
+            "node": "Format: Junk Record",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "AI Agent: Analysis",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Format: Manual Input": {
+      "main": [
+        [
+          {
+            "node": "Store Input",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "On form submission": {
+      "main": [
+        [
+          {
+            "node": "Format: Manual Input",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Webhook": {
+      "main": [
+        [
+          {
+            "node": "Gmail Source: Unread",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Generate Run ID": {
+      "main": [
+        [
+          {
+            "node": "Config: Settings",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Gmail Trigger": {
+      "main": [
+        [
+          {
+            "node": "Store Input",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Config: Settings": {
+      "main": [
+        [
+          {
+            "node": "Postgres: Load Portfolio",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Store Input": {
+      "main": [
+        [
+          {
+            "node": "Generate Run ID",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Format Input": {
+      "main": [
+        [
+          {
+            "node": "AI Agent: Triage",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Guard: Triage": {
+      "main": [
+        [
+          {
+            "node": "Check: Is Junk?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Format: Junk Record": {
+      "main": [
+        [
+          {
+            "node": "Postgres: Save Junk",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Postgres: Save Junk": {
+      "main": [
+        []
+      ]
+    },
+    "AI Agent: Analysis": {
+      "main": [
+        [
+          {
+            "node": "Guard: Analysis",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Guard: Analysis": {
+      "main": [
+        [
+          {
+            "node": "Calculate Scores",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Calculate Scores": {
+      "main": [
+        [
+          {
+            "node": "Check: Immediate Alert?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Check: Immediate Alert?": {
+      "main": [
+        [
+          {
+            "node": "Format: Urgent Alert",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Format: Database Record",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Format: Urgent Alert": {
+      "main": [
+        [
+          {
+            "node": "Send a text message",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Format: Database Record": {
+      "main": [
+        [
+          {
+            "node": "Postgres: Save News",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Postgres: Save News": {
+      "main": [
+        [
+          {
+            "node": "Update Pattern History",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Update Pattern History": {
+      "main": [
+        [
+          {
+            "node": "Check: Has Patterns?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Check: Has Patterns?": {
+      "main": [
+        [
+          {
+            "node": "Postgres: Update Patterns",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Postgres: Update Patterns": {
+      "main": [
+        [
+          {
+            "node": "Postgres: Execute Pattern Update",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Send a text message": {
+      "main": [
+        [
+          {
+            "node": "Format: Database Record",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": true,
+  "settings": {
+    "executionOrder": "v1",
+    "availableInMCP": false
+  },
+  "versionId": "397765e2-ba3b-40cd-97e8-ff66116ac34c",
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "cd895a9f6c2651ad7fd857e15b6c33cb345eeb79c98c7027b52c0557880d7a7e"
+  },
+  "id": "fIsmlTtCxQ95siOI",
+  "tags": [
+    {
+      "updatedAt": "2025-11-09T22:43:41.659Z",
+      "createdAt": "2025-11-09T22:43:41.659Z",
+      "id": "AxT5QfBwqIazMPXZ",
+      "name": "investments"
+    }
+  ]
+}
