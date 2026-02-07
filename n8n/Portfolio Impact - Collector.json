@@ -7,7 +7,7 @@
       "typeVersion": 1,
       "position": [
         -496,
-        272
+        352
       ],
       "id": "842cb656-23f1-4090-b099-44c032f1f7f1",
       "name": "Manual Trigger",
@@ -28,7 +28,7 @@
       "typeVersion": 2.1,
       "position": [
         -272,
-        368
+        544
       ],
       "id": "d7fbe26f-12d2-418f-aa62-410a32e984fe",
       "name": "Gmail Source: Unread",
@@ -50,8 +50,8 @@
       "type": "n8n-nodes-base.postgres",
       "typeVersion": 2.6,
       "position": [
-        624,
-        368
+        848,
+        240
       ],
       "id": "ab54e8f3-3b89-4f5f-9f73-c1f61cb99a72",
       "name": "Postgres: Load Portfolio",
@@ -70,8 +70,8 @@
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        848,
-        368
+        1072,
+        240
       ],
       "id": "5717478d-e97a-4004-8cfc-65b1627c030e",
       "name": "Format Portfolio Context"
@@ -108,8 +108,8 @@
       "type": "@n8n/n8n-nodes-langchain.openAi",
       "typeVersion": 2,
       "position": [
-        1296,
-        368
+        1520,
+        240
       ],
       "id": "9d9996e1-1a77-40c8-a647-5c9cb5c8b8c8",
       "name": "AI Agent: Triage",
@@ -147,8 +147,8 @@
       "type": "n8n-nodes-base.if",
       "typeVersion": 2.3,
       "position": [
-        1744,
-        368
+        1968,
+        240
       ],
       "id": "557571fb-7c73-4702-a55b-6cebb2a021e4",
       "name": "Check: Is Junk?"
@@ -195,7 +195,7 @@
       "typeVersion": 3.4,
       "position": [
         -272,
-        80
+        160
       ],
       "id": "573780c6-d879-4707-b23d-30ba311f8310",
       "name": "Format: Manual Input"
@@ -225,7 +225,7 @@
       "typeVersion": 2.3,
       "position": [
         -496,
-        80
+        160
       ],
       "id": "d72ea703-e97b-4bd5-a713-95b2bb357f8f",
       "name": "On form submission",
@@ -241,7 +241,7 @@
       "typeVersion": 2.1,
       "position": [
         -496,
-        464
+        544
       ],
       "id": "d9b33dc8-2266-469d-8f48-2b0f5244bcd7",
       "name": "Webhook",
@@ -254,8 +254,8 @@
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        176,
-        368
+        400,
+        240
       ],
       "id": "12dd8772-16f2-4342-bbe2-9acd348704e5",
       "name": "Generate Run ID"
@@ -279,7 +279,7 @@
       "typeVersion": 1.3,
       "position": [
         -272,
-        560
+        736
       ],
       "id": "9e8db4ab-9f76-4a39-a58e-31217a3a4354",
       "name": "Gmail Trigger",
@@ -297,8 +297,8 @@
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        400,
-        368
+        624,
+        240
       ],
       "id": "ee8868a1-6cb3-4bb7-a6f1-4c79ea7cc687",
       "name": "Config: Settings"
@@ -311,8 +311,8 @@
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        1072,
-        368
+        1296,
+        240
       ],
       "id": "a7ca97e0-8af1-4fbc-bba4-1116abc3ec5d",
       "name": "Format Input"
@@ -324,8 +324,8 @@
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        -48,
-        368
+        176,
+        240
       ],
       "id": "d9008591-24c6-4330-b14c-c6beca935aa6",
       "name": "Store Input"
@@ -338,8 +338,8 @@
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        1520,
-        368
+        1744,
+        240
       ],
       "id": "a697ae21-5a95-47f7-ad94-50e93efa385f",
       "name": "Guard: Triage"
@@ -352,8 +352,8 @@
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        1968,
-        272
+        2192,
+        64
       ],
       "id": "52c0ad07-3aa3-4a88-85ac-508f561d3133",
       "name": "Format: Junk Record"
@@ -367,8 +367,8 @@
       "type": "n8n-nodes-base.postgres",
       "typeVersion": 2.6,
       "position": [
-        2192,
-        272
+        2416,
+        160
       ],
       "id": "a2df0ba3-9848-4948-b211-97d94fdc3d3b",
       "name": "Postgres: Save Junk",
@@ -412,8 +412,8 @@
       "type": "@n8n/n8n-nodes-langchain.openAi",
       "typeVersion": 2,
       "position": [
-        1968,
-        464
+        2192,
+        256
       ],
       "id": "fe7dbc4c-3c2f-4ada-8c6b-979044ffdd45",
       "name": "AI Agent: Analysis",
@@ -432,8 +432,8 @@
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        2192,
-        464
+        2416,
+        352
       ],
       "id": "e7da537a-3f2f-465f-8f23-12840c1e5a39",
       "name": "Guard: Analysis"
@@ -446,8 +446,8 @@
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        2416,
-        464
+        2640,
+        352
       ],
       "id": "f2991c65-d99e-46fc-91cc-fbb30f7951f5",
       "name": "Calculate Scores"
@@ -480,8 +480,8 @@
       "type": "n8n-nodes-base.if",
       "typeVersion": 2.3,
       "position": [
-        2640,
-        464
+        2864,
+        352
       ],
       "id": "abcdb2e2-3efb-47da-83da-dbc3d8bb7d1e",
       "name": "Check: Immediate Alert?"
@@ -494,8 +494,8 @@
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        2864,
-        400
+        3088,
+        336
       ],
       "id": "fbe19a26-4de0-441e-8d71-5de20f3481ae",
       "name": "Format: Urgent Alert"
@@ -511,8 +511,8 @@
       "type": "n8n-nodes-base.telegram",
       "typeVersion": 1.2,
       "position": [
-        3088,
-        400
+        3312,
+        336
       ],
       "id": "d96afccd-70ba-4934-a356-7b7a68b66f24",
       "name": "Send a text message",
@@ -527,13 +527,13 @@
     {
       "parameters": {
         "mode": "runOnceForEachItem",
-        "jsCode": "const runInfo = $('Generate Run ID').first().json;\nconst input = $('Format Input').first().json;\nconst triage = $('Guard: Triage').first().json;\nconst analysis = $('Guard: Analysis').first().json;\nconst scores = $('Calculate Scores').first().json;\n\n// Helper to escape single quotes for SQL\nconst esc = (str) => String(str || '').replace(/'/g, \"''\");\n\nreturn {\n  json: {\n    // Time bucketing\n    week_year: runInfo.weekYear,\n    week_number: runInfo.weekNumber,\n\n    // Source identification\n    run_id: runInfo.runId,\n    source_type: input.sourceType,\n    email_subject: esc(input.subject),\n    email_from: esc(input.from),\n    email_date: input.emailDate,\n\n    // Triage output\n    triage_priority: triage.priority,\n    triage_confidence: triage.confidence,\n    triage_summary: esc(triage.summary.substring(0, 10000)),\n\n    // Analysis output\n    analysis_summary: esc(analysis.summary.substring(0, 5000)),\n    analysis_actions: JSON.stringify(analysis.actions),\n    symbols_impacted: scores.symbolsImpacted,\n    thesis_impacts: JSON.stringify(scores.thesisImpacts),\n    triggers_hit: analysis.triggersHit,\n\n    // Scoring\n    max_relevance_score: scores.maxRelevance,\n    max_materiality_score: scores.maxMateriality,\n    max_urgency_score: scores.maxUrgency,\n    composite_score: scores.compositeScore,\n\n    // Alert tracking\n    alert_sent: scores.shouldAlertImmediately,\n    alert_reason: scores.alertReason,\n    alert_sent_at: scores.shouldAlertImmediately ? new Date().toISOString() : null,\n\n    // Categories\n    news_categories: scores.categories\n  }\n};"
+        "jsCode": "const runInfo = $('Generate Run ID').first().json;\nconst input = $('Format Input').first().json;\nconst triage = $('Guard: Triage').first().json;\nconst analysis = $('Guard: Analysis').first().json;\nconst scores = $('Calculate Scores').first().json;\n\n// Helper to escape single quotes for SQL\nconst esc = (str) => {\n  if (str === null || str === undefined) return '';\n  if (typeof str === 'object') {\n    // Handle objects like Gmail's from field\n    return JSON.stringify(str).replace(/'/g, \"''\");\n  }\n  return String(str).replace(/'/g, \"''\");\n};\n\n// Extract email address from from field (could be object or string)\nlet emailFrom = input.from;\nif (typeof emailFrom === 'object') {\n  emailFrom = emailFrom.emailAddress || emailFrom.email || emailFrom.value?.[0]?.address ||\nJSON.stringify(emailFrom);\n}\n\nreturn {\n  json: {\n    // Time bucketing\n    week_year: runInfo.weekYear,\n    week_number: runInfo.weekNumber,\n\n    // Source identification\n    run_id: runInfo.runId,\n    source_type: input.sourceType,\n    email_subject: esc(input.subject),\n    email_from: esc(emailFrom),\n    email_date: input.emailDate,\n\n    // Triage output\n    triage_priority: triage.priority,\n    triage_confidence: triage.confidence,\n    triage_summary: esc(triage.summary.substring(0, 10000)),\n\n    // Analysis output\n    analysis_summary: esc(analysis.summary.substring(0, 5000)),\n    analysis_actions: JSON.stringify(analysis.actions).replace(/'/g, \"''\"),\n    symbols_impacted: scores.symbolsImpacted,\n    thesis_impacts: JSON.stringify(scores.thesisImpacts).replace(/'/g, \"''\"),\n    triggers_hit: (analysis.triggersHit || []).map(t => esc(t)),\n\n    // Scoring\n    max_relevance_score: scores.maxRelevance,\n    max_materiality_score: scores.maxMateriality,\n    max_urgency_score: scores.maxUrgency,\n    composite_score: scores.compositeScore,\n\n    // Alert tracking\n    alert_sent: scores.shouldAlertImmediately,\n    alert_reason: scores.alertReason,\n    alert_sent_at: scores.shouldAlertImmediately ? new Date().toISOString() : null,\n\n    // Categories\n    news_categories: scores.categories\n  }\n};"
       },
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        3312,
-        464
+        3536,
+        352
       ],
       "id": "9dd06345-4996-4759-8391-b64c8197697e",
       "name": "Format: Database Record"
@@ -547,8 +547,8 @@
       "type": "n8n-nodes-base.postgres",
       "typeVersion": 2.6,
       "position": [
-        3536,
-        464
+        3760,
+        352
       ],
       "id": "8a506b1b-90c1-40c7-baf2-ec2bfc468511",
       "name": "Postgres: Save News",
@@ -567,8 +567,8 @@
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        3760,
-        464
+        3984,
+        352
       ],
       "id": "5db73585-1a70-4071-b65a-3f33e783cbb7",
       "name": "Update Pattern History"
@@ -601,8 +601,8 @@
       "type": "n8n-nodes-base.if",
       "typeVersion": 2.3,
       "position": [
-        3984,
-        464
+        4208,
+        352
       ],
       "id": "f76f82b9-29c7-4fe2-904a-1ea4cadcb165",
       "name": "Check: Has Patterns?"
@@ -615,8 +615,8 @@
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        4208,
-        464
+        4432,
+        352
       ],
       "id": "37b173e7-d09a-443b-be01-3f28307342bf",
       "name": "Postgres: Update Patterns"
@@ -630,8 +630,8 @@
       "type": "n8n-nodes-base.postgres",
       "typeVersion": 2.6,
       "position": [
-        4432,
-        464
+        4656,
+        480
       ],
       "id": "70af920b-27bd-43e7-8251-e820e2822a87",
       "name": "Postgres: Execute Pattern Update",
@@ -641,6 +641,19 @@
           "name": "invest_n8n_app_write"
         }
       }
+    },
+    {
+      "parameters": {
+        "options": {}
+      },
+      "type": "n8n-nodes-base.splitInBatches",
+      "typeVersion": 3,
+      "position": [
+        0,
+        496
+      ],
+      "id": "c2233fdc-d2ef-4055-b14a-a5fedcc22ff0",
+      "name": "Loop: Process Each Email"
     }
   ],
   "pinData": {},
@@ -660,7 +673,7 @@
       "main": [
         [
           {
-            "node": "Store Input",
+            "node": "Loop: Process Each Email",
             "type": "main",
             "index": 0
           }
@@ -723,7 +736,7 @@
       "main": [
         [
           {
-            "node": "Store Input",
+            "node": "Loop: Process Each Email",
             "type": "main",
             "index": 0
           }
@@ -767,7 +780,7 @@
       "main": [
         [
           {
-            "node": "Store Input",
+            "node": "Loop: Process Each Email",
             "type": "main",
             "index": 0
           }
@@ -831,7 +844,13 @@
     },
     "Postgres: Save Junk": {
       "main": [
-        []
+        [
+          {
+            "node": "Loop: Process Each Email",
+            "type": "main",
+            "index": 0
+          }
+        ]
       ]
     },
     "AI Agent: Analysis": {
@@ -937,6 +956,13 @@
             "type": "main",
             "index": 0
           }
+        ],
+        [
+          {
+            "node": "Loop: Process Each Email",
+            "type": "main",
+            "index": 0
+          }
         ]
       ]
     },
@@ -961,6 +987,29 @@
           }
         ]
       ]
+    },
+    "Loop: Process Each Email": {
+      "main": [
+        [],
+        [
+          {
+            "node": "Store Input",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Postgres: Execute Pattern Update": {
+      "main": [
+        [
+          {
+            "node": "Loop: Process Each Email",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
     }
   },
   "active": true,
@@ -968,7 +1017,7 @@
     "executionOrder": "v1",
     "availableInMCP": false
   },
-  "versionId": "397765e2-ba3b-40cd-97e8-ff66116ac34c",
+  "versionId": "84c794e5-309f-4932-8bc2-f293a9709924",
   "meta": {
     "templateCredsSetupCompleted": true,
     "instanceId": "cd895a9f6c2651ad7fd857e15b6c33cb345eeb79c98c7027b52c0557880d7a7e"

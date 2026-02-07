@@ -375,9 +375,9 @@
     {
       "parameters": {
         "operation": "executeQuery",
-        "query": "INSERT INTO invest_audit.investing_weekly_digest_log\n    (run_id, week_year, week_number, news_items_count, symbols_covered,\n     digest_summary, requires_attention, monitor_list, week_ahead_outlook,\n     telegram_sent, telegram_sent_at, ai_model_used)\nVALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, TRUE, NOW(), $10);",
+        "query": "INSERT INTO invest_audit.investing_weekly_digest_log (run_id, week_year, week_number, news_items_count, symbols_covered, digest_summary, requires_attention, monitor_list, week_ahead_outlook, telegram_sent, telegram_sent_at, ai_model_used)\nVALUES (\n    '{{ $json.run_id }}',\n    {{ $json.week_year }},\n    {{ $json.week_number }},\n    {{ $json.news_items_count }},\n    '{{ $json.symbols_covered }}'::text[],\n    '{{ $json.digest_summary }}',\n    '{{ $json.requires_attention }}'::jsonb,\n    '{{ $json.monitor_list }}'::jsonb,\n    '{{ $json.week_ahead_outlook }}'::jsonb,\n    TRUE,\n    NOW(),\n    '{{ $json.ai_model_used }}'\n);",
         "options": {
-          "queryReplacement": "={{ $('Generate Run ID').first().json.runId }},{{ $('Generate Run ID').first().json.weekYear }},{{   $('Generate Run ID').first().json.weekNumber }},{{ $('Guard: Weekly Analysis').first().json.newsCount }},{{    JSON.stringify($('Guard: Weekly Analysis').first().json.analysis.requiresAttention.map(r =>   r.symbol).concat($('Guard: Weekly Analysis').first().json.analysis.monitor.map(m => m.symbol))) }},{{   $('Guard: Weekly Analysis').first().json.analysis.weekSummary }},{{ JSON.stringify($('Guard: Weekly Analysis').first().json.analysis.requiresAttention) }},{{ JSON.stringify($('Guard: Weekly Analysis').first().json.analysis.monitor) }},{{ JSON.stringify($('Guard: Weekly Analysis').first().json.analysis.weekAhead) }},gpt-4o"
+          "queryReplacement": "={{ $('Generate Run ID').first().json.runId }},{{ $('Generate Run ID').first().json.weekYear }},{{\n  $('Generate Run ID').first().json.weekNumber }},{{ $('Guard: Weekly Analysis').first().json.newsCount\n  }},{{ '{' + $('Guard: Weekly Analysis').first().json.analysis.requiresAttention.map(r =>\n  r.symbol).concat($('Guard: Weekly Analysis').first().json.analysis.monitor.map(m => m.symbol)).join(',')\n   + '}' }},{{ $('Guard: Weekly Analysis').first().json.analysis.weekSummary }},{{\n  JSON.stringify($('Guard: Weekly Analysis').first().json.analysis.requiresAttention) }},{{\n  JSON.stringify($('Guard: Weekly Analysis').first().json.analysis.monitor) }},{{ JSON.stringify($('Guard: Weekly Analysis').first().json.analysis.weekAhead) }},gpt-4o"
         }
       },
       "type": "n8n-nodes-base.postgres",
@@ -394,6 +394,19 @@
           "name": "invest_n8n_app_write"
         }
       }
+    },
+    {
+      "parameters": {
+        "jsCode": "const runInfo = $('Generate Run ID').first().json;\nconst guardData = $('Guard: Weekly Analysis').first().json;\nconst analysis = guardData.analysis;\n\n// Build symbols array in PostgreSQL format\nconst symbols = [\n  ...analysis.requiresAttention.map(r => r.symbol),\n  ...analysis.monitor.map(m => m.symbol)\n];\nconst symbolsArray = '{' + symbols.join(',') + '}';\n\n// Escape single quotes for SQL\nconst esc = (str) => String(str || '').replace(/'/g, \"''\");\n\nreturn [{\n  json: {\n    run_id: runInfo.runId,\n    week_year: runInfo.weekYear,\n    week_number: runInfo.weekNumber,\n    news_items_count: guardData.newsCount,\n    symbols_covered: symbolsArray,\n    digest_summary: esc(analysis.weekSummary),\n    requires_attention: JSON.stringify(analysis.requiresAttention).replace(/'/g, \"''\"),\n    monitor_list: JSON.stringify(analysis.monitor).replace(/'/g, \"''\"),\n    week_ahead_outlook: JSON.stringify(analysis.weekAhead).replace(/'/g, \"''\"),\n    ai_model_used: 'gpt-4o'\n  }\n}];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2800,
+        400
+      ],
+      "id": "d4290074-0b2a-4c28-aac4-8a41e4e0347e",
+      "name": "Code in JavaScript"
     }
   ],
   "pinData": {},
@@ -563,7 +576,7 @@
         ],
         [
           {
-            "node": "Postgres: Log Digest",
+            "node": "Code in JavaScript",
             "type": "main",
             "index": 0
           }
@@ -598,14 +611,25 @@
           }
         ]
       ]
+    },
+    "Code in JavaScript": {
+      "main": [
+        [
+          {
+            "node": "Postgres: Log Digest",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
     }
   },
-  "active": false,
+  "active": true,
   "settings": {
     "executionOrder": "v1",
     "availableInMCP": false
   },
-  "versionId": "18fb5998-ebc9-4183-9c2a-3b1be51772dc",
+  "versionId": "8473cbc1-b6d2-4e43-9b1c-cc69a8cd8789",
   "meta": {
     "templateCredsSetupCompleted": true,
     "instanceId": "cd895a9f6c2651ad7fd857e15b6c33cb345eeb79c98c7027b52c0557880d7a7e"
