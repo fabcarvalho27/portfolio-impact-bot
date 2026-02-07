@@ -495,7 +495,7 @@
       "typeVersion": 2,
       "position": [
         2864,
-        392
+        400
       ],
       "id": "fbe19a26-4de0-441e-8d71-5de20f3481ae",
       "name": "Format: Urgent Alert"
@@ -512,7 +512,7 @@
       "typeVersion": 1.2,
       "position": [
         3088,
-        392
+        400
       ],
       "id": "d96afccd-70ba-4934-a356-7b7a68b66f24",
       "name": "Send a text message",

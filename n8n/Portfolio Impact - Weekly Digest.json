@@ -1,0 +1,622 @@
+{
+  "name": "Portfolio Impact - Weekly Digest",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "weeks",
+              "triggerAtDay": [
+                6
+              ],
+              "triggerAtHour": 9
+            }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.3,
+      "position": [
+        0,
+        208
+      ],
+      "id": "fd28c08a-dcc8-4c28-afbf-beac4bbc7cbd",
+      "name": "Schedule: Saturday 9am"
+    },
+    {
+      "parameters": {
+        "jsCode": "const now = new Date();\nconst weekNumber = Math.ceil((((now - new Date(now.getFullYear(),0,1)) / 86400000) + new\nDate(now.getFullYear(),0,1).getDay()+1)/7);\n\nreturn [{\n  json: {\n    runId: `digest-${now.getFullYear()}-W${String(weekNumber).padStart(2, '0')}-${Date.now()}`,\n    weekYear: now.getFullYear(),\n    weekNumber: weekNumber,\n    generatedAt: now.toISOString()\n  }\n}];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        224,
+        208
+      ],
+      "id": "2febbef0-40dc-4d09-8823-1a59d789787f",
+      "name": "Generate Run ID"
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT\n    id,\n    created_at,\n    source_type,\n    email_subject,\n    triage_priority,\n    triage_summary,\n    news_categories,\n    analysis_summary,\n    analysis_actions,\n    symbols_impacted,\n    thesis_impacts,\n    max_relevance_score,\n    max_materiality_score,\n    max_urgency_score,\n    composite_score,\n    alert_sent,\n    alert_reason\nFROM invest_audit.investing_news_collection\nWHERE included_in_digest = FALSE\n  AND triage_priority != 'junk'\n  AND created_at > NOW() - INTERVAL '7 days'\nORDER BY composite_score DESC NULLS LAST, created_at DESC;",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.6,
+      "position": [
+        448,
+        400
+      ],
+      "id": "c7726971-b722-48ef-a5bb-fdd5d8c52891",
+      "name": "Postgres: Load Week's News",
+      "credentials": {
+        "postgres": {
+          "id": "gULOv6Wf6ppIekjp",
+          "name": "invest_n8n_app_read"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT\n    s.symbol,\n    s.name AS security_name,\n    s.asset_class,\n    p.qty,\n    p.open_price,\n    p.ccy,\n    p.thesis,\n    p.triggers,\n    p.time_horizon,\n    pr.close AS current_price,\n    pr.as_of_date\nFROM invest_core.position p\nJOIN invest_core.security s ON s.id = p.security_id\nLEFT JOIN LATERAL (\n    SELECT close, as_of_date\n    FROM invest_core.price\n    WHERE security_id = s.id\n    ORDER BY as_of_date DESC\n    LIMIT 1\n) pr ON true\nWHERE p.qty > 0\nORDER BY s.symbol;",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.6,
+      "position": [
+        448,
+        16
+      ],
+      "id": "1dc95bdf-377c-49be-992c-6a6967eb96a4",
+      "name": "Postgres: Load Portfolio",
+      "credentials": {
+        "postgres": {
+          "id": "gULOv6Wf6ppIekjp",
+          "name": "invest_n8n_app_read"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT\n    symbol,\n    news_category,\n    occurrence_count,\n    total_composite_score,\n    validates_count,\n    challenges_count,\n    neutral_count,\n    last_seen_at\nFROM invest_audit.investing_news_pattern_history\nWHERE last_seen_at > NOW() - INTERVAL '30 days'\nORDER BY symbol, occurrence_count DESC;",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.6,
+      "position": [
+        448,
+        208
+      ],
+      "id": "61c35faa-7688-4862-8486-fe64ac646b81",
+      "name": "Postgres: Load Patterns",
+      "credentials": {
+        "postgres": {
+          "id": "gULOv6Wf6ppIekjp",
+          "name": "invest_n8n_app_read"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 3
+          },
+          "conditions": [
+            {
+              "id": "4f14459f-cb08-4c14-9a99-9aff936f4e03",
+              "leftValue": "={{ $input.all().length}}",
+              "rightValue": 0,
+              "operator": {
+                "type": "number",
+                "operation": "gt"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [
+        672,
+        400
+      ],
+      "id": "fba24762-35a7-4dda-a55b-060d1fe2cf3a",
+      "name": "Check: Has News?"
+    },
+    {
+      "parameters": {
+        "chatId": "={{ $env.TELEGRAM_CHAT_ID }}",
+        "text": "=📊 <b>WEEKLY PORTFOLIO BRIEFING</b>\nWeek {{ $('Generate Run ID').first().json.weekNumber }}, {{ $('Generate Run ID').first().json.weekYear }}\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n✅ <b>Quiet Week</b>\nNo significant news affecting your portfolio this week.\nEnjoy your weekend! ☕",
+        "additionalFields": {
+          "parse_mode": "HTML"
+        }
+      },
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [
+        896,
+        496
+      ],
+      "id": "5ef154d2-fd8c-4e35-b6c2-2479ddda5f39",
+      "name": "Send: Quiet Week",
+      "webhookId": "65d8621b-0ceb-404d-bd7a-ed0cac746f74",
+      "credentials": {
+        "telegramApi": {
+          "id": "L9cwZfU7yp7HcB8K",
+          "name": "Telegram investments bot"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const news = $('Postgres: Load Week\\'s News').all().map(item => item.json);\nconst portfolio = $('Postgres: Load Portfolio').all().map(item => item.json);\nconst patterns = $('Postgres: Load Patterns').all().map(item => item.json);\nconst runInfo = $('Generate Run ID').first().json;\n\n// Format portfolio context\nconst portfolioContext = portfolio.map(p => {\n  let context = `${p.symbol} | ${p.security_name} | ${p.asset_class}`;\n  if (p.thesis) context += `\\n  Thesis: ${p.thesis}`;\n  if (p.time_horizon) context += `\\n  Horizon: ${p.time_horizon}`;\n  if (p.triggers && p.triggers.length > 0) {\n    context += `\\n  Triggers: ${JSON.stringify(p.triggers)}`;\n  }\n  return context;\n}).join('\\n\\n');\n\n// Format news summary\nconst newsSummary = news.map((n, i) => {\n  const symbols = Array.isArray(n.symbols_impacted) ? n.symbols_impacted.join(', ') : 'N/A';\n  const categories = Array.isArray(n.categories) ? n.categories.join(', ') : 'N/A';\n  return `[${i + 1}] ${n.email_subject || 'Manual Input'}\n  Priority: ${n.triage_priority} | Score: ${n.composite_score || 'N/A'}\n  Symbols: ${symbols}\n  Categories: ${categories}\n  Summary: ${n.triage_summary || n.analysis_summary || 'No summary'}\n  ${n.alert_sent ? `⚡ ALERTED: ${n.alert_reason}` : ''}`;\n}).join('\\n\\n');\n\n// Format pattern history\nconst patternSummary = patterns.length > 0\n  ? patterns.map(p =>\n      `${p.symbol} | ${p.category}: ${p.occurrence_count}x (avg score: ${p.avg_composite_score || 'N/A'})`\n    ).join('\\n')\n  : 'No recent patterns recorded.';\n\n// Group news by symbol for easier analysis\nconst newsBySymbol = {};\nnews.forEach(n => {\n  const symbols = Array.isArray(n.symbols_impacted) ? n.symbols_impacted : [];\n  symbols.forEach(sym => {\n    if (!newsBySymbol[sym]) newsBySymbol[sym] = [];\n    newsBySymbol[sym].push({\n      subject: n.email_subject,\n      summary: n.triage_summary || n.analysis_summary,\n      categories: n.categories,\n      score: n.composite_score,\n      thesisImpact: n.thesis_impacts\n    });\n  });\n});\n\nreturn [{\n  json: {\n    runInfo,\n    newsCount: news.length,\n    portfolioContext,\n    newsSummary,\n    patternSummary,\n    newsBySymbol,\n    portfolioSymbols: portfolio.map(p => p.symbol),\n    rawNews: news,\n    rawPatterns: patterns\n  }\n}];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        896,
+        304
+      ],
+      "id": "3202cddf-1ce9-4264-9d22-557806ab041f",
+      "name": "Format: Weekly Context"
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "=PORTFOLIO CONTEXT:\n{{ $json.portfolioContext }}\n\nTHIS WEEK'S NEWS ({{ $json.newsCount }} items):\n{{ $json.newsSummary }}\n\nNEWS BY SYMBOL:\n{{ JSON.stringify($json.newsBySymbol, null, 2) }}\n\nRECENT PATTERNS (last 30 days):\n{{ $json.patternSummary }}\n\nGenerate a comprehensive weekly analysis. Focus on actionable insights for positions I actually hold.",
+        "options": {
+          "systemMessage": "=You are a portfolio strategist preparing a weekly briefing for a swing trader and long-term investor. Your job is to synthesize the week's news into actionable insights.\n\nFocus on:\n- What news impacts their specific positions and theses\n- Recurring patterns that signal trends\n- Concrete actions for the week ahead\n- Filtering noise from signal\n\nYou MUST respond with ONLY a valid JSON object matching this schema:\n\n{\n  \"weekSummary\": \"2-3 sentence overview of the week's key themes\",\n  \"requiresAttention\": [\n    {\n      \"symbol\": \"NVDA\",\n      \"newsCount\": 3,\n      \"categories\": [\"regulatory\", \"earnings\"],\n      \"thesisImpact\": \"challenges\",\n      \"keyPoints\": [\"Point 1\", \"Point 2\"],\n      \"suggestedAction\": \"Review position size before earnings\",\n      \"urgencyLevel\": \"high\"\n    }\n  ],\n  \"monitor\": [\n    {\n      \"symbol\": \"AAPL\",\n      \"newsCount\": 1,\n      \"summary\": \"Minor analyst upgrade, no thesis impact\",\n      \"suggestedAction\": \"No action needed\"\n    }\n  ],\n  \"patternsToNote\": [\n    \"NVDA regulatory news: 5th mention this month - becoming a trend\"\n  ],\n  \"weekAhead\": {\n    \"keyEvents\": [\"Event 1\", \"Event 2\"],\n    \"suggestedFocus\": [\"Focus area 1\", \"Focus area 2\"],\n    \"riskFactors\": [\"Risk 1\"]\n  },\n  \"noActionNeeded\": [\"MSFT\", \"GOOGL\", \"AMZN\"]\n}"
+        }
+      },
+      "type": "@n8n/n8n-nodes-langchain.agent",
+      "typeVersion": 3.1,
+      "position": [
+        1120,
+        304
+      ],
+      "id": "3c85d20c-5fc2-4d76-b159-f5b2bab479a9",
+      "name": "AI Agent"
+    },
+    {
+      "parameters": {
+        "model": {
+          "__rl": true,
+          "value": "={{ $env.OPEN_AI_EXPENSIVE_MODEL }}",
+          "mode": "id"
+        },
+        "builtInTools": {},
+        "options": {
+          "textFormat": {
+            "textOptions": {
+              "type": "json_object"
+            }
+          }
+        }
+      },
+      "type": "@n8n/n8n-nodes-langchain.lmChatOpenAi",
+      "typeVersion": 1.3,
+      "position": [
+        1200,
+        528
+      ],
+      "id": "ce9f5d85-b337-42e1-9e4c-407e82a99f8e",
+      "name": "OpenAI Chat Model",
+      "credentials": {
+        "openAiApi": {
+          "id": "ru3zX3RIfX1V4xmm",
+          "name": "OpenAi account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const context = $('Format: Weekly Context').first().json;\nconst rawOutput = $input.first().json;\n\nlet parsed;\ntry {\n  // AI Agent returns { output: \"json string\" }\n  let textContent = rawOutput.output;\n\n  // Parse the JSON string\n  parsed = JSON.parse(textContent);\n\n} catch (e) {\n  parsed = {\n    weekSummary: \"Unable to generate weekly analysis due to processing error: \" + e.message,\n    requiresAttention: [],\n    monitor: [],\n    patternsToNote: [],\n    weekAhead: {\n      keyEvents: [],\n      suggestedFocus: [],\n      riskFactors: []\n    },\n    noActionNeeded: context.portfolioSymbols || [],\n    parseError: e.message\n  };\n}\n\n// Validate and ensure arrays exist\nconst validated = {\n  weekSummary: parsed.weekSummary || \"No summary available.\",\n  requiresAttention: Array.isArray(parsed.requiresAttention) ? parsed.requiresAttention : [],\n  monitor: Array.isArray(parsed.monitor) ? parsed.monitor : [],\n  patternsToNote: Array.isArray(parsed.patternsToNote) ? parsed.patternsToNote : [],\n  weekAhead: {\n    keyEvents: Array.isArray(parsed.weekAhead?.keyEvents) ? parsed.weekAhead.keyEvents : [],\n    suggestedFocus: Array.isArray(parsed.weekAhead?.suggestedFocus) ? parsed.weekAhead.suggestedFocus : [],\n    riskFactors: Array.isArray(parsed.weekAhead?.riskFactors) ? parsed.weekAhead.riskFactors : []\n  },\n  noActionNeeded: Array.isArray(parsed.noActionNeeded) ? parsed.noActionNeeded : []\n};\n\nreturn [{\n  json: {\n    analysis: validated,\n    hasParseError: !!parsed.parseError,\n    ...context\n  }\n}];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1472,
+        304
+      ],
+      "id": "7f64368a-6b01-4e42-94c3-be9821010769",
+      "name": "Guard: Weekly Analysis"
+    },
+    {
+      "parameters": {
+        "jsCode": "const data = $input.first().json;\nconst analysis = data.analysis;\nconst runInfo = data.runInfo;\n\nconst esc = (str) => String(str || '')\n  .replace(/&/g, '&amp;')\n  .replace(/</g, '&lt;')\n  .replace(/>/g, '&gt;');\n\nlet message = `📊 <b>WEEKLY PORTFOLIO BRIEFING</b>\nWeek ${runInfo.weekNumber}, ${runInfo.weekYear}\n\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n\n${esc(analysis.weekSummary)}\n\n`;\n\n// Requires Attention section\nif (analysis.requiresAttention.length > 0) {\n  message += `━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n🔴 <b>REQUIRES ATTENTION (${analysis.requiresAttention.length})</b>\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n\n`;\n  for (const item of analysis.requiresAttention) {\n    const categories = Array.isArray(item.categories) ? item.categories.join(', ') : '';\n    const keyPoints = Array.isArray(item.keyPoints) ? item.keyPoints : [];\n\n    message += `<b>${esc(item.symbol)}</b> | ${esc(categories)}\n├─ ${item.newsCount} news item(s)\n├─ Thesis: <b>${esc(item.thesisImpact?.toUpperCase())}</b>\n`;\n    for (const point of keyPoints) {\n      message += `├─ ${esc(point)}\n`;\n    }\n    message += `└─ <i>${esc(item.suggestedAction)}</i>\n\n`;\n  }\n}\n\n// Monitor section\nif (analysis.monitor.length > 0) {\n  message += `━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n🟡 <b>MONITOR (${analysis.monitor.length})</b>\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n\n`;\n  for (const item of analysis.monitor) {\n    message += `<b>${esc(item.symbol)}</b> | ${item.newsCount} item(s)\n└─ ${esc(item.summary)} | <i>${esc(item.suggestedAction)}</i>\n\n`;\n  }\n}\n\n// Patterns to note\nif (analysis.patternsToNote.length > 0) {\n  message += `━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n📈 <b>PATTERNS</b>\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n\n`;\n  for (const pattern of analysis.patternsToNote) {\n    message += `• ${esc(pattern)}\n`;\n  }\n  message += `\n`;\n}\n\n// Week Ahead\nconst weekAhead = analysis.weekAhead;\nif (weekAhead.keyEvents.length > 0 || weekAhead.suggestedFocus.length > 0) {\n  message += `━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n📅 <b>WEEK AHEAD</b>\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n\n`;\n  if (weekAhead.keyEvents.length > 0) {\n    message += `<b>Key Events:</b>\n`;\n    for (const event of weekAhead.keyEvents) {\n      message += `• ${esc(event)}\n`;\n    }\n  }\n  if (weekAhead.suggestedFocus.length > 0) {\n    message += `\n<b>Focus Areas:</b>\n`;\n    for (const focus of weekAhead.suggestedFocus) {\n      message += `• ${esc(focus)}\n`;\n    }\n  }\n  if (weekAhead.riskFactors.length > 0) {\n    message += `\n<b>Risk Factors:</b>\n`;\n    for (const risk of weekAhead.riskFactors) {\n      message += `⚠️ ${esc(risk)}\n`;\n    }\n  }\n  message += `\n`;\n}\n\n// No Action Needed\nif (analysis.noActionNeeded.length > 0) {\n  message += `━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n✅ <b>NO ACTION (${analysis.noActionNeeded.length} positions)</b>\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n\n${analysis.noActionNeeded.join(', ')}\n\n`;\n}\n\n// Footer\nmessage += `━━━━━━━━━━━━━━━━━━━━━━━━━━━━\nSupport this project ☕\nbuymeacoffee.com/fabcarvalho`;\n\nreturn [{\n  json: {\n    ...data,\n    telegramMessage: message\n  }\n}];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1696,
+        304
+      ],
+      "id": "03a3e14a-851f-4f34-858c-27a6d31f218c",
+      "name": "Format: Weekly Telegram"
+    },
+    {
+      "parameters": {
+        "chatId": "={{ $env.TELEGRAM_CHAT_ID }}",
+        "text": "={{ $json.telegramMessage }}",
+        "additionalFields": {
+          "parse_mode": "HTML"
+        }
+      },
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [
+        1920,
+        304
+      ],
+      "id": "8de99708-4a5c-4070-9324-edd8c423711e",
+      "name": "Send: Weekly Digest",
+      "webhookId": "333bf758-08cf-47e3-9b43-019cbc27e5d8",
+      "credentials": {
+        "telegramApi": {
+          "id": "L9cwZfU7yp7HcB8K",
+          "name": "Telegram investments bot"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "UPDATE invest_audit.investing_news_collection\nSET included_in_digest = TRUE,\n    digest_date = CURRENT_DATE\nWHERE included_in_digest = FALSE\n  AND triage_priority != 'junk'\n  AND created_at > NOW() - INTERVAL '7 days'\nRETURNING id;",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.6,
+      "position": [
+        2144,
+        304
+      ],
+      "id": "68b30446-8ed6-4f37-9967-024f78a13dfd",
+      "name": "Postgres: Mark Processed",
+      "credentials": {
+        "postgres": {
+          "id": "kMYfCk8MQVYfSRwu",
+          "name": "invest_n8n_app_write"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const data = $('Guard: Weekly Analysis').first().json;\nconst rawNews = data.rawNews || [];\n\n// Build pattern updates from news items\nconst patternMap = {};\n\nfor (const news of rawNews) {\n  const symbols = Array.isArray(news.symbols_impacted) ? news.symbols_impacted : [];\n  const categories = Array.isArray(news.categories) ? news.categories : [];\n  const compositeScore = news.composite_score || 0;\n\n  // Get thesis impacts\n  const thesisImpacts = Array.isArray(news.thesis_impacts) ? news.thesis_impacts : [];\n\n  for (const symbol of symbols) {\n    for (const category of categories) {\n      const key = `${symbol}|${category}`;\n\n      if (!patternMap[key]) {\n        patternMap[key] = {\n          symbol,\n          category,\n          totalScore: 0,\n          count: 0,\n          validates: 0,\n          challenges: 0,\n          neutral: 0\n        };\n      }\n\n      patternMap[key].totalScore += compositeScore;\n      patternMap[key].count += 1;\n\n      // Check thesis impact for this symbol\n      const impact = thesisImpacts.find(t => t.symbol === symbol);\n      if (impact) {\n        if (impact.impact === 'validates') patternMap[key].validates += 1;\n        else if (impact.impact === 'challenges') patternMap[key].challenges += 1;\n        else patternMap[key].neutral += 1;\n      } else {\n        patternMap[key].neutral += 1;\n      }\n    }\n  }\n}\n\nconst patterns = Object.values(patternMap);\n\nif (patterns.length === 0) {\n  return [{ json: { hasPatterns: false, patterns: [] } }];\n}\n\nreturn [{\n  json: {\n    hasPatterns: true,\n    patterns\n  }\n}];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2368,
+        304
+      ],
+      "id": "49a2dfe3-8d76-4498-a7dc-2c18e241e0a3",
+      "name": "Format: Pattern Updates"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 3
+          },
+          "conditions": [
+            {
+              "id": "b2810449-9bdc-49a2-b274-942c63e82e17",
+              "leftValue": "={{ $json.hasPatterns }}",
+              "rightValue": "",
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [
+        2592,
+        304
+      ],
+      "id": "2e63b5c8-9d85-4e4c-bf80-ae3e9a52b251",
+      "name": "Check: Has Patterns?"
+    },
+    {
+      "parameters": {
+        "options": {}
+      },
+      "type": "n8n-nodes-base.splitInBatches",
+      "typeVersion": 3,
+      "position": [
+        2816,
+        208
+      ],
+      "id": "09c5d813-8922-42cc-8331-0745764ed90e",
+      "name": "Loop Over Items"
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "INSERT INTO invest_audit.investing_news_pattern_history\n    (symbol, category, occurrence_count, total_composite_score,\n     validates_count, challenges_count, neutral_count, last_seen_at)\nVALUES ($1, $2, $3, $4, $5, $6, $7, NOW())\nON CONFLICT (symbol, category) DO UPDATE SET\n    occurrence_count = investing_news_pattern_history.occurrence_count + $3,\n    total_composite_score = investing_news_pattern_history.total_composite_score + $4,\n    validates_count = investing_news_pattern_history.validates_count + $5,\n    challenges_count = investing_news_pattern_history.challenges_count + $6,\n    neutral_count = investing_news_pattern_history.neutral_count + $7,\n    last_seen_at = NOW();",
+        "options": {
+          "queryReplacement": "={{ $json.symbol }},{{ $json.category }},{{ $json.count }},{{ $json.totalScore }},{{ $json.validates }},{{   $json.challenges }},{{ $json.neutral }}"
+        }
+      },
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.6,
+      "position": [
+        3040,
+        112
+      ],
+      "id": "17cdf6a6-7b8f-4a13-9ee3-47bc61a4bd28",
+      "name": "Postgres: Upsert Pattern",
+      "credentials": {
+        "postgres": {
+          "id": "kMYfCk8MQVYfSRwu",
+          "name": "invest_n8n_app_write"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "INSERT INTO invest_audit.investing_weekly_digest_log\n    (run_id, week_year, week_number, news_items_count, symbols_covered,\n     digest_summary, requires_attention, monitor_list, week_ahead_outlook,\n     telegram_sent, telegram_sent_at, ai_model_used)\nVALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, TRUE, NOW(), $10);",
+        "options": {
+          "queryReplacement": "={{ $('Generate Run ID').first().json.runId }},{{ $('Generate Run ID').first().json.weekYear }},{{   $('Generate Run ID').first().json.weekNumber }},{{ $('Guard: Weekly Analysis').first().json.newsCount }},{{    JSON.stringify($('Guard: Weekly Analysis').first().json.analysis.requiresAttention.map(r =>   r.symbol).concat($('Guard: Weekly Analysis').first().json.analysis.monitor.map(m => m.symbol))) }},{{   $('Guard: Weekly Analysis').first().json.analysis.weekSummary }},{{ JSON.stringify($('Guard: Weekly Analysis').first().json.analysis.requiresAttention) }},{{ JSON.stringify($('Guard: Weekly Analysis').first().json.analysis.monitor) }},{{ JSON.stringify($('Guard: Weekly Analysis').first().json.analysis.weekAhead) }},gpt-4o"
+        }
+      },
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.6,
+      "position": [
+        3040,
+        304
+      ],
+      "id": "304f84b5-8f7e-4d91-af3b-ae2bbbcef640",
+      "name": "Postgres: Log Digest",
+      "credentials": {
+        "postgres": {
+          "id": "kMYfCk8MQVYfSRwu",
+          "name": "invest_n8n_app_write"
+        }
+      }
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Schedule: Saturday 9am": {
+      "main": [
+        [
+          {
+            "node": "Generate Run ID",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Generate Run ID": {
+      "main": [
+        [
+          {
+            "node": "Postgres: Load Portfolio",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Postgres: Load Patterns",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Postgres: Load Week's News",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Postgres: Load Week's News": {
+      "main": [
+        [
+          {
+            "node": "Check: Has News?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Postgres: Load Portfolio": {
+      "main": [
+        []
+      ]
+    },
+    "Check: Has News?": {
+      "main": [
+        [
+          {
+            "node": "Format: Weekly Context",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Send: Quiet Week",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Format: Weekly Context": {
+      "main": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "OpenAI Chat Model": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "AI Agent": {
+      "main": [
+        [
+          {
+            "node": "Guard: Weekly Analysis",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Guard: Weekly Analysis": {
+      "main": [
+        [
+          {
+            "node": "Format: Weekly Telegram",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Format: Weekly Telegram": {
+      "main": [
+        [
+          {
+            "node": "Send: Weekly Digest",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Send: Weekly Digest": {
+      "main": [
+        [
+          {
+            "node": "Postgres: Mark Processed",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Postgres: Mark Processed": {
+      "main": [
+        [
+          {
+            "node": "Format: Pattern Updates",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Format: Pattern Updates": {
+      "main": [
+        [
+          {
+            "node": "Check: Has Patterns?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Check: Has Patterns?": {
+      "main": [
+        [
+          {
+            "node": "Loop Over Items",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Postgres: Log Digest",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Loop Over Items": {
+      "main": [
+        [
+          {
+            "node": "Postgres: Log Digest",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Postgres: Upsert Pattern",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Postgres: Upsert Pattern": {
+      "main": [
+        [
+          {
+            "node": "Loop Over Items",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1",
+    "availableInMCP": false
+  },
+  "versionId": "18fb5998-ebc9-4183-9c2a-3b1be51772dc",
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "cd895a9f6c2651ad7fd857e15b6c33cb345eeb79c98c7027b52c0557880d7a7e"
+  },
+  "id": "GrfIrS30_X7MowGrwGu12",
+  "tags": [
+    {
+      "updatedAt": "2025-11-09T22:43:41.659Z",
+      "createdAt": "2025-11-09T22:43:41.659Z",
+      "id": "AxT5QfBwqIazMPXZ",
+      "name": "investments"
+    }
+  ]
+}
