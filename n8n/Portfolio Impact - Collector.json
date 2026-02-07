@@ -44,7 +44,7 @@
     {
       "parameters": {
         "operation": "executeQuery",
-        "query": "SELECT\n  p.id as position_id,\n  s.symbol,\n  s.name as security_name,\n  p.qty,\n  p.open_price,\n  p.ccy,\n  p.thesis,\n  p.triggers,\n  p.time_horizon,\n  p.notes,\n  pr.close as current_price,\n  pr.as_of_date,\n  CASE\n      WHEN p.open_price > 0 THEN\n          ROUND(((pr.close - p.open_price) / p.open_price * 100)::numeric, 2)\n      ELSE 0\n  END as pnl_percent\nFROM invest_core.position p\nJOIN invest_core.security s ON s.id = p.security_id\nLEFT JOIN LATERAL (\n  SELECT close, as_of_date\n  FROM invest_core.price\n  WHERE security_id = s.id\n  ORDER BY as_of_date DESC\n  LIMIT 1\n) pr ON true\nWHERE p.qty > 0 AND s.asset_class = 'EQUITY'\nORDER BY s.symbol;",
+        "query": "SELECT\n  p.id as position_id,\n  s.symbol,\n  s.name as security_name,\n  p.qty,\n  p.open_price,\n  p.ccy,\n  p.thesis,\n  p.triggers,\n  p.time_horizon,\n  p.notes,\n  pr.close as current_price,\n  pr.as_of_date,\n  CASE\n      WHEN p.open_price > 0 THEN\n          ROUND(((pr.close - p.open_price) / p.open_price * 100)::numeric, 2)\n      ELSE 0\n  END as pnl_percent\nFROM invest_core.position p\nJOIN invest_core.security s ON s.id = p.security_id\nLEFT JOIN LATERAL (\n  SELECT close, as_of_date\n  FROM invest_core.price\n  WHERE security_id = s.id\n  ORDER BY as_of_date DESC\n  LIMIT 1\n) pr ON true\nWHERE p.qty > 0\nORDER BY s.symbol;",
         "options": {}
       },
       "type": "n8n-nodes-base.postgres",
@@ -65,7 +65,7 @@
     },
     {
       "parameters": {
-        "jsCode": "const positions = $('Postgres: Load Portfolio').all();\n\n// Group positions by symbol (user may have multiple positions per symbol)\nconst bySymbol = {};\nfor (const item of positions) {\n  const p = item.json;\n  if (!bySymbol[p.symbol]) {\n    bySymbol[p.symbol] = {\n      symbol: p.symbol,\n      name: p.security_name,\n      positions: []\n    };\n  }\n  bySymbol[p.symbol].positions.push({\n    qty: p.qty,\n    avgCost: p.avg_cost,\n    pnlPercent: p.pnl_percent,\n    currentPrice: p.current_price,\n    timeHorizon: p.time_horizon,\n    thesis: p.thesis,\n    triggers: p.triggers,\n    notes: p.notes\n  });\n}\n\n// Format as readable string for AI\nconst lines = [];\nfor (const [symbol, data] of Object.entries(bySymbol)) {\n  for (const pos of data.positions) {\n    const pnlStr = pos.pnlPercent >= 0 ? `+${pos.pnlPercent}%` : `${pos.pnlPercent}%`;\n    lines.push(`${symbol} | ${pos.timeHorizon || 'unknown'} | ${pnlStr} | Thesis: ${pos.thesis || 'Not specified'}`);\n    if (pos.triggers && pos.triggers.length > 0) {\n      lines.push(`  Triggers: ${JSON.stringify(pos.triggers)}`);\n    }\n  }\n}\n\nreturn [{\n  json: {\n    portfolioContext: lines.join('\\n'),\n    symbolList: Object.keys(bySymbol),\n    positionCount: positions.length\n  }\n}];"
+        "jsCode": "const positions = $('Postgres: Load Portfolio').all();\n\n// Group positions by symbol + time_horizon (preserves different strategies)\nconst groups = {};\nfor (const item of positions) {\n  const p = item.json;\n  const horizon = p.time_horizon || 'unknown';\n  const key = `${p.symbol}|${horizon}`;\n\n  if (!groups[key]) {\n    groups[key] = {\n      symbol: p.symbol,\n      timeHorizon: horizon,\n      pnls: [],\n      thesis: null,\n      triggers: null\n    };\n  }\n\n  // Parse P&L as float (handles strings, nulls, etc.)\n  const pnlValue = parseFloat(p.pnl_percent);\n  if (!isNaN(pnlValue)) {\n    groups[key].pnls.push(pnlValue);\n  }\n\n  // Keep first thesis found\n  if (!groups[key].thesis && p.thesis) {\n    groups[key].thesis = p.thesis;\n  }\n\n  // Keep first triggers found\n  if (!groups[key].triggers && p.triggers && p.triggers.length > 0) {\n    groups[key].triggers = p.triggers;\n  }\n}\n\n// Format as readable string for AI\nconst lines = [];\nconst symbols = new Set();\n\nfor (const [key, data] of Object.entries(groups)) {\n  symbols.add(data.symbol);\n\n  // Calculate average P&L\n  const lotCount = data.pnls.length;\n  let pnlStr = 'N/A';\n  if (lotCount > 0) {\n    const avgPnl = data.pnls.reduce((a, b) => a + b, 0) / lotCount;\n    pnlStr = avgPnl >= 0 ? `+${avgPnl.toFixed(1)}%` : `${avgPnl.toFixed(1)}%`;\n  }\n\n  const lotInfo = lotCount > 1 ? ` (${lotCount} lots)` : '';\n\n  lines.push(`${data.symbol} | ${data.timeHorizon} | ${pnlStr}${lotInfo} | Thesis: ${data.thesis || 'Not specified'}`);\n  if (data.triggers && data.triggers.length > 0) {\n    lines.push(`  Triggers: ${JSON.stringify(data.triggers)}`);\n  }\n}\n\nreturn [{\n  json: {\n    portfolioContext: lines.join('\\n'),\n    symbolList: Array.from(symbols),\n    positionCount: positions.length,\n    consolidatedGroups: Object.keys(groups).length\n  }\n}];"
       },
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
@@ -1017,7 +1017,7 @@
     "executionOrder": "v1",
     "availableInMCP": false
   },
-  "versionId": "422385bf-8da5-46d8-b11b-5e378879916f",
+  "versionId": "6de17653-13fa-4730-959c-794aa05650dc",
   "meta": {
     "templateCredsSetupCompleted": true,
     "instanceId": "cd895a9f6c2651ad7fd857e15b6c33cb345eeb79c98c7027b52c0557880d7a7e"
